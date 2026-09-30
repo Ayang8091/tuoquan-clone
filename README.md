@@ -6,13 +6,25 @@
 
 ```bash
 cd tuoquan-clone
-python3 -m http.server 8080
-# 用户端  http://localhost:8080/index.html
+python3 -m http.server 8080          # 纯静态（登录走前端演示模式）
+# 或带后端（推荐，登录/短信走真实 API 链路）：
+node server.js                       # http://localhost:8080
 # 后台    http://localhost:8080/admin.html   账号 admin / 123456
 ```
 
-> 直接双击 index.html / admin.html 也可以运行（无需服务器）。
+> 线上地址：https://tuoquan-ai.app.workbuddy.host/ （已部署，微信内置浏览器/手机浏览器均可打开）
 > 重置演示数据：控制台执行 `Store.reset()` 后刷新。
+
+## 登录 / 注册（微信授权 + 手机号绑定）
+
+流程：**微信授权登录（或手机号登录）→ 未绑定手机号则强制进入绑定页 → 绑定完成即注册**。
+
+- 微信内浏览器：公众号网页授权（snsapi_userinfo），在 `js/config.js` 配置 `mpAppId` 即启用真实授权
+- 微信外浏览器：开放平台网站应用扫码登录，配置 `openAppId` 启用
+- 手机号绑定：短信验证码（演示模式固定 `123456`；真实接入在 server.js 侧配置短信服务商 + `SMS_PROVIDER_KEY`）
+- 登录态存 `localStorage.TQ_SESSION`，全部业务页有路由守卫
+- **AppSecret 绝不能放前端**：真实换票据由 `server.js` 的 `/api/wx/exchange` 完成，环境变量 `WX_APPID/WX_SECRET`
+- 未配置任何资质时自动走「演示模式」，全流程仍可体验
 
 ## 复刻依据：功能点 ↔ 素材对照
 
