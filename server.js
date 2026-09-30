@@ -84,36 +84,55 @@ const apiHandlers = {
   'video/resolve': async (body, res) => {
     const target = String(body.url || '').trim();
     if (!/^https?:\/\//i.test(target)) return json(res, 200, { ok: false, msg: '链接格式不正确' });
-    const UA = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49' };
-    const fetchText = (u) => new Promise((resolve, reject) => {
-      const req = https.get(u, { headers: UA }, (r) => {
-        /* 跟随一次跳转 */
+    const UA = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49', 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8' };
+    /* 支持多级跳转（视频号分享链常需 2~3 次 302），http/https 通吃 */
+    const fetchText = (u, depth) => new Promise((resolve, reject) => {
+      if (depth > 3) return reject(new Error('redirect loop'));
+      const mod = u.startsWith('http://') ? http : https;
+      const req = mod.get(u, { headers: UA }, (r) => {
         if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
-          https.get(r.headers.location, { headers: UA }, (r2) => {
-            let raw = ''; r2.on('data', (c) => (raw += c));
-            r2.on('end', () => resolve(raw));
-          }).on('error', reject);
-          return;
+          r.resume();
+          const next = new url.URL(r.headers.location, u).toString();
+          return resolve(fetchText(next, depth + 1));
         }
-        let raw = ''; r.on('data', (c) => (raw += c));
+        let raw = ''; r.setEncoding('utf8');
+        r.on('data', (c) => (raw += c));
         r.on('end', () => resolve(raw));
       }).on('error', reject);
       req.setTimeout(8000, () => req.destroy(new Error('timeout')));
     });
+    const unesc = (s) => s.replace(/\\\//g, '/').replace(/\\u002[Ff]/g, '/').replace(/&amp;/g, '&').trim();
     try {
-      const html = await fetchText(target);
+      const html = await fetchText(target, 0);
+      /* meta 提取：兼容 property/name 在前或 content 在前两种顺序 */
       const meta = (prop) => {
-        const re = new RegExp('<meta[^>]*(?:property|name)="' + prop + '"[^>]*content="([^"]*)"', 'i');
-        const m = html.match(re) || [];
-        return m[1] || '';
+        let m = html.match(new RegExp('<meta[^>]*(?:property|name)=["\']' + prop + '["\'][^>]*content=["\']([^"\']*)["\']', 'i'));
+        if (!m) m = html.match(new RegExp('<meta[^>]*content=["\']([^"\']*)["\'][^>]*(?:property|name)=["\']' + prop + '["\']', 'i'));
+        return m ? unesc(m[1]) : '';
       };
       let title = meta('og:title') || (html.match(/<title>([^<]*)<\/title>/i) || [])[1] || '';
-      let cover = meta('og:image') || meta('twitter:image');
-      if (!cover) { const m = html.match(/"(https?:[^"]*(?:cover|snapshot|thumb)[^"]*)"/i); cover = m ? m[1] : ''; }
+      let cover = meta('og:image') || meta('og:image:secure_url') || meta('twitter:image') || meta('twitter:image:src') || meta('image');
+      /* 视频号/通用 JSON 字段兜底：coverUrl 等常见键名（含 \/ 转义） */
+      if (!cover) {
+        const keys = ['coverUrl', 'cover_url', 'coverImgUrl', 'cover_img_url', 'coverMap', 'mediaCoverUrl', 'snapshotUrl', 'thumbUrl', 'thumbnailUrl', 'imageUrl', 'poster'];
+        for (const k of keys) {
+          const m = html.match(new RegExp('["\\\']?' + k + '["\\\']?\\s*[:=]\\s*["\\\'](https?:[^"\\\']+)', 'i'));
+          if (m) { cover = unesc(m[1]); break; }
+        }
+      }
+      /* 最后兜底：任意含 cover/snapshot/thumb 关键词的 URL */
+      if (!cover) {
+        const m = html.match(/"(https?:[^"\\]*(?:cover|snapshot|thumb)[^"\\]*)"/i);
+        if (m) cover = unesc(m[1]);
+      }
       try { title = decodeURIComponent(title); } catch (e) { /* keep */ }
-      json(res, 200, { ok: true, title: title.replace(/&amp;/g, '&').trim(), cover: cover.trim() });
+      const isChannels = /channels\.weixin\.qq\.com/i.test(target);
+      if (!cover && isChannels) {
+        return json(res, 200, { ok: false, msg: '视频号未暴露封面（需在微信内打开），将使用默认视频窗口样式，可手动上传封面' });
+      }
+      json(res, 200, { ok: true, title: title.replace(/&amp;/g, '&').trim(), cover: (cover || '').trim() });
     } catch (e) {
-      json(res, 200, { ok: false, msg: '抓取失败（该链接需在微信内打开或未暴露封面），请手动上传封面图' });
+      json(res, 200, { ok: false, msg: '抓取失败（链接需在微信内打开或网络超时），将使用默认视频窗口样式，可手动上传封面' });
     }
   }
 };

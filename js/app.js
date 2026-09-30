@@ -178,6 +178,15 @@
         (b.cover === 'codex' ? 'Codex · AI时代的超级助手' : b.cover === 'sea' ? '所有国内生意<br>都值得用海外社媒再做一遍' : '') + '</div>' +
         '<div class="play"></div></div>';
     }
+    /* 兜底：有视频链接但没抓到/没上传封面 → 默认视频窗口（深色渐变 + 播放按钮） */
+    if (b.videoUrl) {
+      return '<div class="boss-cover" style="height:190px;background:linear-gradient(135deg,#0e1a3a 0%,#1c2f66 55%,#33508f 100%)" onclick="User.openVideo(\'' + b.id + '\')">' +
+        '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">' +
+        '<div class="play"></div>' +
+        '<div style="margin-top:10px;color:rgba(255,255,255,.72);font-size:11px;letter-spacing:1px">视频封面待更新 · 点击观看</div></div>' +
+        '<div style="position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;border-radius:10px;padding:2px 8px">视频号 ▶</div>' +
+        '</div>';
+    }
     return '';
   }
 

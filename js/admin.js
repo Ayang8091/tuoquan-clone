@@ -201,6 +201,16 @@
         '<div class="mrow">' +
         '<div class="f"><label>上架</label><select id="mOn"><option value="1" ' + (b.onShelf ? 'selected' : '') + '>上架</option><option value="0" ' + (!b.onShelf ? 'selected' : '') + '>下架</option></select></div></div>' +
         '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveBoss(\'' + (id || '') + '\')">保存</button></div>');
+      /* 粘贴/输入视频链接后自动抓取封面（去抖 500ms，无需手点按钮） */
+      window._lastGrabUrl = b.videoUrl || '';
+      var vu = document.getElementById('mVideoUrl');
+      var autoGrab = function () {
+        var v = vu.value.trim();
+        if (v && v !== window._lastGrabUrl) { window._lastGrabUrl = v; Admin.grabCover(); }
+      };
+      vu.addEventListener('paste', function () { setTimeout(autoGrab, 500); });
+      vu.addEventListener('blur', autoGrab);
+      vu.addEventListener('change', autoGrab);
       Admin.renderPhotoPv();
     },
     renderPhotoPv: function () {
@@ -239,7 +249,8 @@
     grabCover: function () {
       var u = document.getElementById('mVideoUrl').value.trim();
       if (!u) { toast('请先粘贴视频号链接'); return; }
-      toast('正在抓取封面...');
+      var tip = document.getElementById('pvCoverTip');
+      if (tip) tip.textContent = '正在抓取封面...';
       var base = location.origin.startsWith('http') ? location.origin : '';
       fetch(base + '/api/video/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) })
         .then(function (r) { return r.json(); })
@@ -258,10 +269,19 @@
               document.getElementById('pvCoverTip').textContent = '已自动抓取封面';
               toast('封面抓取成功');
             };
-            img.onerror = function () { toast('封面图加载失败，请手动上传'); };
+            img.onerror = function () {
+              if (tip) tip.textContent = '封面图加载失败，将使用默认视频窗口，可手动上传';
+              toast('封面图加载失败，可手动上传');
+            };
             img.src = r.cover;
-          } else toast(r.msg || '未抓取到封面，请手动上传');
-        }).catch(function () { toast('抓取失败，请手动上传封面'); });
+          } else {
+            if (tip) tip.textContent = '未抓取到封面 → 前端显示默认视频窗口（可手动上传）';
+            toast(r.msg || '未抓取到封面，将使用默认视频窗口样式');
+          }
+        }).catch(function () {
+          if (tip) tip.textContent = '抓取失败 → 前端显示默认视频窗口（可手动上传）';
+          toast('抓取失败，可手动上传封面');
+        });
     },
     saveBoss: function (id) {
       var db = S.get();
