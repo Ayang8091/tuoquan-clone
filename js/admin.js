@@ -42,6 +42,7 @@
         document.getElementById('admin').style.display = 'block';
         Admin.renderAll();
         toast('登录成功');
+        Admin.pullCloud();
       } else { toast('账号或密码错误（admin / 123456）'); }
     },
     logout: function () {
@@ -520,7 +521,18 @@
       S.save(); toast('配置已保存，用户端实时生效');
     },
 
-    closeModal: closeModal
+    closeModal: closeModal,
+
+    /* 拉取云端最新内容（其他设备/电脑后台改过的数据）并刷新界面 */
+    pullCloud: function () {
+      if (!S.initSync) return;
+      S.initSync(function () {
+        Admin.renderAll();
+        toast('已同步云端最新数据');
+      }, function () {
+        toast('云端连接失败，当前显示本地缓存');
+      });
+    }
   };
 
   /* 自动登录恢复 & 侧边栏绑定 */
@@ -528,6 +540,7 @@
     document.getElementById('loginMask').style.display = 'none';
     document.getElementById('admin').style.display = 'block';
     Admin.renderAll();
+    Admin.pullCloud();
   }
   document.querySelectorAll('.sb-item').forEach(function (i) {
     i.onclick = function () { Admin.go(i.dataset.page); };

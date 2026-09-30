@@ -23,3 +23,10 @@ window.WX_CONFIG = {
   // 部署域名（用于微信授权回调回跳，留空自动取 location.origin）
   authDomain: ''
 };
+
+/* WorkBuddy 云服务公共配置（数据跨设备同步用）
+ * endpoint 必须与当前部署域名一致；publishableKey 仅标识应用，无敏感权限 */
+window.PUBLIC_CONFIG = {
+  endpoint: 'https://tuoquan-ai.app.workbuddy.host',
+  publishableKey: 'wbpk_ZCEEBSKEIGvYtpuy9Vwcyy_ctN0eqfb1SzTA5BHRoPbhlQUMj7YXZ2k'
+};

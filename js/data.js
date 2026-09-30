@@ -1,12 +1,15 @@
 /* ============================================================
  * 乐道AI · 复刻系统 —— 数据层
- * 使用 localStorage 作为数据库，key: TQ_DB_V1
+ * 云端数据库（tq_content）为唯一数据源，localStorage 仅作本地缓存：
+ *   - 启动时 Store.initSync() 拉取云端内容域（config/bosses/salons/notices）
+ *   - 后台保存（Store.save()）自动把内容域推送云端 → 所有设备同步
  * 用户端与后台共用同一份数据，后台改动实时反映到用户端
  * ============================================================ */
 (function (global) {
   'use strict';
 
   var DB_KEY = 'TQ_DB_V1';
+  var CONTENT_SCOPES = ['config', 'bosses', 'salons', 'notices'];
 
   function uid(prefix) {
     return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -196,10 +199,32 @@
 
   var db = load();
 
+  /* ---------- 云同步：保存后自动推送内容域（防抖 600ms） ---------- */
+  var pushTimer = null;
+  function scheduleCloudPush() {
+    if (!global.CloudSync) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      global.CloudSync.push(CONTENT_SCOPES, db);
+    }, 600);
+  }
+
+  /* 判断当前本地内容域是否仍是初始种子数据（云端为空时决定是否首推上云） */
+  function seedContent() {
+    var s = seed();
+    return { config: s.config, bosses: s.bosses, salons: s.salons, notices: s.notices };
+  }
+
   global.Store = {
     get: function () { return db; },
-    save: function () { save(db); },
-    reset: function () { db = seed(); save(db); },
+    save: function () { save(db); scheduleCloudPush(); },
+    persist: function () { save(db); },
+    /* 启动时云端初始化：拉取云端覆盖本地（changed 时回调刷新界面） */
+    initSync: function (onChanged, onError) {
+      if (!global.CloudSync) return Promise.resolve();
+      return global.CloudSync.init(db, seedContent(), onChanged, onError);
+    },
+    reset: function () { db = seed(); save(db); scheduleCloudPush(); },
     uid: uid,
     /* 工具 */
     fmtMoney: function (n) { return '¥' + (Math.round(n * 100) / 100); },
