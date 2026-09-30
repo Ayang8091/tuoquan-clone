@@ -22,7 +22,7 @@
       /* ---------- 系统配置（后台可改） ---------- */
       config: {
         siteName: '乐道AI',
-        domain: 'hui.tuoquankj.com',
+        domain: 'ledaoykj.com',
         memberPrice: 1980,
         referralPrice: 100,
         memberCommissionRate: 30,   // 会员佣金 %
