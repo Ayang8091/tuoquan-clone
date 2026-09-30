@@ -271,7 +271,7 @@
       '<div class="me-card">' +
       '<div class="me-ava" style="' + (u.avatar ? 'background-image:url(' + u.avatar + ')' : '') + '">' + (u.avatar ? '' : '👤') + '</div>' +
       '<div class="me-info"><div class="me-name">' + (u.nickname || '微信用户') + '</div>' +
-      '<div class="me-sub">' + u.role + ' · ' + u.maskedPhone + '</div></div>' +
+      '<div class="me-sub">' + u.role + '</div></div>' +
       '<button class="btn-edit" onclick="UI.go(\'#/profile\')">编辑</button></div>' +
       '<div class="menu-card">' + items.map(function (it) {
         return '<div class="menu-item" onclick="User.menuClick(\'' + it[3] + '\')">' +
@@ -570,7 +570,7 @@
       '</div>' +
       '<div class="form-card"><h4>入驻档案 <span class="opt">仅平台内部可见，不对外开放</span></h4>' +
       '<div class="f-label">姓名 / 称呼 <span class="req">*</span></div><input class="f-input" id="pName" placeholder="例：王建国" value="' + (p.name || '') + '">' +
-      '<div class="f-label">手机号</div><input class="f-input" value="' + db.user.phone + '" disabled><div class="hint">账号手机号，不可修改</div>' +
+      '<div class="f-label">微信号</div><input class="f-input" id="pWechat" placeholder="例：wang_1988" value="' + (p.wechat || '') + '">' +
       '<div class="f-label">公司 <span class="req">*</span></div><input class="f-input" id="pCompany" placeholder="例：深圳市某某科技有限公司" value="' + (p.company || '') + '">' +
       '<div class="f-label">行业 <span class="req">*</span></div><input class="f-input" id="pIndustry" placeholder="例：跨境电商" value="' + (p.industry || '') + '">' +
       '<div class="f-label">主营</div><input class="f-input" id="pMainBiz" placeholder="例：亚马逊选品卖家，年销 2000 万" value="' + (p.mainBiz || '') + '">' +
@@ -656,7 +656,7 @@
       '<svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M9.5 4C5.9 4 3 6.5 3 9.6c0 1.8 1 3.4 2.5 4.5l-.7 2.1 2.4-1.2c.7.2 1.5.3 2.3.3h.4A5.6 5.6 0 0 1 9.6 13c0-3 2.9-5.4 6.4-5.4h.3C15.6 5.5 12.8 4 9.5 4zm-2 3.5a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm4.5 0a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zM16 8.6c-3.2 0-5.8 2.1-5.8 4.7s2.6 4.7 5.8 4.7c.6 0 1.2-.1 1.8-.3l2 1-.6-1.7c1.3-.9 2.2-2.2 2.2-3.7 0-2.6-2.6-4.7-5.4-4.7zm-1.8 2.9a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm3.6 0a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z"/></svg>' +
       (inWx ? '微信授权一键登录' : '微信登录（未配置则模拟授权）') + '</button>' +
       '<div class="lp-tip">登录即代表同意《用户协议》与《隐私政策》<br>' +
-      (inWx ? '检测到微信内置浏览器 · 将使用公众号网页授权' : '未检测到微信环境 · 演示模式：点击按钮即完成模拟授权登录') + '</div>' +
+      (inWx ? '已识别微信环境 · 正在自动授权登录…' : '未检测到微信环境 · 演示模式：点击按钮即完成模拟授权登录') + '</div>' +
       '</div>';
   }
 
@@ -699,11 +699,19 @@
 
   window.addEventListener('hashchange', function () { render(); });
 
-  /* 启动：处理微信授权回调 → 同步登录态 → 首次渲染 */
+  /* 启动：处理微信授权回调 → 同步登录态 → 微信内自动授权登录 → 首次渲染 */
   Auth.handleCallback()
     .then(function () { Auth.syncToStore(); })
     .catch(function () { /* 授权失败则回到登录页 */ Auth.logout(); })
-    .then(function () { render(); });
+    .then(function () {
+      var auto = Auth.tryAutoLogin(); // 微信内：自动授权，无需点击
+      if (auto && typeof auto.then === 'function') {
+        auto.then(function (s) {
+          if (s) { Auth.syncToStore(); UI.toast('微信授权成功，欢迎 ' + (s.nickname || '')); }
+          render();
+        }).catch(function () { render(); });
+      } else { render(); }
+    });
 
   /* ================= 用户操作 ================= */
   var User = window.User = {
@@ -743,6 +751,7 @@
     saveProfile: function () {
       var db = S.get(), p = db.user.profile;
       p.name = document.getElementById('pName').value;
+      var wEl = document.getElementById('pWechat'); if (wEl) p.wechat = wEl.value;
       p.company = document.getElementById('pCompany').value;
       p.industry = document.getElementById('pIndustry').value;
       p.mainBiz = document.getElementById('pMainBiz').value;

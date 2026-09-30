@@ -10,6 +10,13 @@
   var SESSION_KEY = 'TQ_SESSION';
   var CFG = (global.WX_CONFIG = global.WX_CONFIG || {});
 
+  /* 演示头像：绿色圆形 + 昵称首字（真实授权时使用微信头像 headimgurl） */
+  function demoAvatar(name) {
+    var ch = String(name || '微').charAt(0);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="48" fill="#07c160"/><text x="48" y="62" font-size="40" text-anchor="middle" fill="#fff" font-family="sans-serif">' + ch + '</text></svg>';
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+
   function api(path, data) {
     var base = CFG.apiBase || '/api';
     return fetch(base + path, {
@@ -64,14 +71,31 @@
         throw new Error(r && r.msg || '微信授权失败');
       });
     },
-    /* 演示模式：模拟微信用户 */
+    /* 演示模式：模拟微信用户（含生成的头像，展示微信名+头像效果） */
     demoWx: function (label) {
+      var nickname = '微信用户' + Math.random().toString(36).slice(2, 6).toUpperCase();
       return {
         openid: 'demo_openid_' + Math.random().toString(36).slice(2, 10),
-        nickname: '微信用户' + Math.random().toString(36).slice(2, 6).toUpperCase(),
-        avatar: '',
+        nickname: nickname,
+        avatar: demoAvatar(nickname),
         demo: true, label: label || '演示授权'
       };
+    },
+
+    /* 微信内自动授权登录：进入页面即识别微信并完成登录，无需点击
+     * - 已配置 mpAppId：直接跳转公众号网页授权（回调后自动完成）
+     * - 未配置（演示模式）：本地生成演示微信身份直登
+     * 返回 Promise(session) 或 null（无需/无法自动登录） */
+    tryAutoLogin: function () {
+      if (!Auth.isWeChat() || Auth.isLoggedIn()) return null;
+      if (CFG.mpAppId) {
+        if (sessionStorage.getItem('TQ_AUTH_TRIED')) return null; // 防授权死循环
+        sessionStorage.setItem('TQ_AUTH_TRIED', '1');
+        return Auth.wxMpLogin(); // 跳转微信授权页，返回 null
+      }
+      var s = Auth.demoWx('微信自动授权');
+      Auth.setSession(s);
+      return Promise.resolve(s);
     },
 
     /* ---------- 手机号绑定（已移除：登录流程 = 微信授权即登录） ---------- */
@@ -96,6 +120,7 @@
       if (!code || !from) return Promise.resolve(false);
       return Auth.exchangeCode(code, from).then(function (wxUser) {
         Auth.setSession(wxUser);
+        sessionStorage.removeItem('TQ_AUTH_TRIED');
         // 清理 URL 参数
         history.replaceState(null, '', location.pathname);
         return true;

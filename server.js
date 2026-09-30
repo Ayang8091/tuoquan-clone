@@ -100,7 +100,12 @@ const server = http.createServer(async (req, res) => {
   if (!abs.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
   fs.readFile(abs, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not Found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(abs)] || 'application/octet-stream' });
+    /* HTML/JS/CSS 不缓存，确保前端更新即时生效 */
+    const noCache = /\.(html|js|css|json)$/.test(abs) || abs.endsWith(ROOT + '/');
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(abs)] || 'application/octet-stream',
+      'Cache-Control': noCache ? 'no-cache, must-revalidate' : 'public, max-age=86400'
+    });
     res.end(data);
   });
 });
