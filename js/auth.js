@@ -1,7 +1,7 @@
 /* ============================================================
- * 拓圈AI · 登录/注册模块
- * 流程：微信授权（微信内网页授权 / 微信外扫码，未配置走演示模式）
- *      → 未绑定手机号则进入手机号+短信验证码绑定 → 注册完成
+ * 拓圈AI · 登录模块
+ * 流程：进入登录页 → 直接唤起微信授权（微信内网页授权 / 微信外扫码，
+ *      未配置 AppID 时走演示模式）→ 授权成功即完成登录并锁定身份
  * 登录态存 localStorage: TQ_SESSION
  * ============================================================ */
 (function (global) {
@@ -29,7 +29,6 @@
     logout: function () { localStorage.removeItem(SESSION_KEY); },
 
     isLoggedIn: function () { return !!Auth.getSession(); },
-    hasPhone: function () { var s = Auth.getSession(); return !!(s && s.phone); },
     isWeChat: function () { return /MicroMessenger/i.test(navigator.userAgent); },
 
     /* ---------- 微信授权 ---------- */
@@ -75,42 +74,7 @@
       };
     },
 
-    /* ---------- 手机号绑定 ---------- */
-    sendSms: function (phone) {
-      if (!/^1\d{10}$/.test(phone)) return Promise.reject(new Error('请输入正确的手机号'));
-      return api('/sms/send', { phone: phone }).then(function (r) {
-        if (r.offline) return { ok: true, demo: true, demoCode: '123456' }; // 无后端演示模式
-        if (!r.ok) throw new Error(r.msg || '发送失败');
-        return r; // { ok:true, demoCode?:'123456' } 演示模式会返回固定码
-      });
-    },
-    bindPhone: function (phone, smsCode, wxUser) {
-      return api('/sms/verify', { phone: phone, code: smsCode }).then(function (r) {
-        if (r.offline) { // 无后端：本地校验演示码
-          if (smsCode !== '123456') throw new Error('验证码错误（演示模式验证码为 123456）');
-          r = { ok: true };
-        }
-        if (!r.ok) throw new Error(r.msg || '验证码错误');
-        var s = Auth.getSession() || wxUser || Auth.demoWx();
-        s.phone = phone; s.wxNicknameBound = true;
-        Auth.setSession(s);
-        return s;
-      });
-    },
-    /* 手机号+验证码直接登录（未走微信时） */
-    phoneLogin: function (phone, smsCode) {
-      return api('/sms/verify', { phone: phone, code: smsCode }).then(function (r) {
-        if (r.offline) {
-          if (smsCode !== '123456') throw new Error('验证码错误（演示模式验证码为 123456）');
-          r = { ok: true };
-        }
-        if (!r.ok) throw new Error(r.msg || '验证码错误');
-        var s = Auth.getSession() || Auth.demoWx('手机号登录');
-        s.phone = phone; s.wxNicknameBound = true;
-        Auth.setSession(s);
-        return s;
-      });
-    },
+    /* ---------- 手机号绑定（已移除：登录流程 = 微信授权即登录） ---------- */
 
     /* 同步登录态到业务数据层（昵称/手机号） */
     syncToStore: function () {

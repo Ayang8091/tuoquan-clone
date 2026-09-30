@@ -4,15 +4,14 @@
  * 职责：
  *   1. 托管静态前端（index.html / admin.html）
  *   2. /api/wx/exchange  微信 code 换取用户信息（真实接入需环境变量）
- *   3. /api/sms/send     发送短信验证码（演示模式固定 123456）
- *   4. /api/sms/verify   校验短信验证码
  *
  * 真实接入环境变量：
  *   WX_APPID / WX_SECRET   公众号网页授权（微信内）
  *   OPEN_APPID / OPEN_SECRET  开放平台网站应用（微信外扫码，换取
  *                              access_token 需再经 code→token 两步，此处
  *                              已留 TODO 标注）
- *   SMS_PROVIDER_KEY       短信服务商密钥（腾讯云/阿里云 SDK 接入点）
+ *
+ * 登录流程：微信授权成功即完成登录并锁定身份（无手机号绑定环节）
  *
  * 运行：node server.js [端口，默认 8080]
  * ============================================================ */
@@ -26,10 +25,6 @@ const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 const WX_APPID = process.env.WX_APPID || '';
 const WX_SECRET = process.env.WX_SECRET || '';
-const SMS_KEY = process.env.SMS_PROVIDER_KEY || '';
-
-/* 内存验证码池（生产请换 Redis） */
-const smsPool = new Map(); // phone -> { code, expires }
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -50,9 +45,6 @@ function httpsGet(target) {
       r.on('end', () => { try { resolve(JSON.parse(raw)); } catch (e) { reject(e); } });
     }).on('error', reject);
   });
-}
-function randomCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 /* ---------- API 处理 ---------- */
@@ -86,27 +78,6 @@ const apiHandlers = {
     } catch (e) {
       json(res, 500, { ok: false, msg: String(e.message || e) });
     }
-  },
-
-  /* 发送短信验证码 */
-  'sms/send': async (body, res) => {
-    const phone = String(body.phone || '');
-    if (!/^1\d{10}$/.test(phone)) return json(res, 200, { ok: false, msg: '手机号格式不正确' });
-    const code = SMS_KEY ? randomCode() : '123456'; // 演示模式固定 123456
-    smsPool.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 });
-    /* TODO 真实接入点：在此调用腾讯云 SMS / 阿里云 SMS SDK 发送短信 */
-    console.log(`[SMS] ${phone} -> ${code} (演示模式直接返回给前端)`);
-    json(res, 200, { ok: true, demo: !SMS_KEY, demoCode: SMS_KEY ? undefined : code });
-  },
-
-  /* 校验验证码 */
-  'sms/verify': async (body, res) => {
-    const phone = String(body.phone || '');
-    const rec = smsPool.get(phone);
-    if (!rec || rec.expires < Date.now()) return json(res, 200, { ok: false, msg: '验证码已过期，请重新发送' });
-    if (rec.code !== String(body.code || '')) return json(res, 200, { ok: false, msg: '验证码错误' });
-    smsPool.delete(phone);
-    json(res, 200, { ok: true });
   }
 };
 
@@ -137,5 +108,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   const mode = WX_APPID ? '真实微信授权' : '演示模式（未配置 WX_APPID）';
   console.log(`拓圈AI 服务已启动: http://localhost:${PORT}`);
-  console.log(`登录模式: ${mode} | 短信: ${SMS_KEY ? '真实服务商' : '演示模式(验证码 123456)'}`);
+  console.log(`登录模式: ${mode} | 授权成功即登录（无手机号绑定）`);
 });

@@ -644,7 +644,7 @@
       '</div>';
   }
 
-  /* ================= 页面：登录 ================= */
+  /* ================= 页面：登录（微信授权即登录） ================= */
   function pageLogin() {
     var inWx = Auth.isWeChat();
     phone.innerHTML = '' +
@@ -655,41 +655,10 @@
       '<button class="lp-wx" onclick="User.wxLogin()">' +
       '<svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M9.5 4C5.9 4 3 6.5 3 9.6c0 1.8 1 3.4 2.5 4.5l-.7 2.1 2.4-1.2c.7.2 1.5.3 2.3.3h.4A5.6 5.6 0 0 1 9.6 13c0-3 2.9-5.4 6.4-5.4h.3C15.6 5.5 12.8 4 9.5 4zm-2 3.5a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm4.5 0a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zM16 8.6c-3.2 0-5.8 2.1-5.8 4.7s2.6 4.7 5.8 4.7c.6 0 1.2-.1 1.8-.3l2 1-.6-1.7c1.3-.9 2.2-2.2 2.2-3.7 0-2.6-2.6-4.7-5.4-4.7zm-1.8 2.9a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm3.6 0a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z"/></svg>' +
       (inWx ? '微信授权一键登录' : '微信登录（未配置则模拟授权）') + '</button>' +
-      '<div class="lp-div"><span>或</span></div>' +
-      '<div class="lp-phone-card">' +
-      '<div class="f-label" style="margin-top:0">手机号登录 / 注册</div>' +
-      '<input class="f-input" id="lpPhone" type="tel" maxlength="11" placeholder="请输入手机号">' +
-      '<div style="display:flex;gap:10px;margin-top:10px">' +
-      '<input class="f-input" id="lpCode" maxlength="6" placeholder="短信验证码" style="flex:1">' +
-      '<button class="lp-send" id="lpSendBtn" onclick="User.sendLoginCode()">获取验证码</button></div>' +
-      '<button class="btn-save" style="margin-top:14px" onclick="User.phoneLogin()">登录 / 注册</button>' +
-      '</div>' +
       '<div class="lp-tip">登录即代表同意《用户协议》与《隐私政策》<br>' +
-      (inWx ? '检测到微信内置浏览器 · 将使用公众号网页授权' : '未检测到微信环境 · 演示模式验证码 123456') + '</div>' +
+      (inWx ? '检测到微信内置浏览器 · 将使用公众号网页授权' : '未检测到微信环境 · 演示模式：点击按钮即完成模拟授权登录') + '</div>' +
       '</div>';
   }
-
-  /* ================= 页面：绑定手机号 ================= */
-  function pageBind() {
-    var s = Auth.getSession();
-    phone.innerHTML = '' +
-      '<div class="login-page">' +
-      '<div class="lp-logo" style="background:linear-gradient(135deg,#07c160,#059848)">✓</div>' +
-      '<div class="lp-name">绑定手机号</div>' +
-      '<div class="lp-slogan">欢迎你，' + esc2(s && s.nickname || '微信用户') + ' · 绑定后完成注册</div>' +
-      '<div class="lp-phone-card">' +
-      '<div class="f-label" style="margin-top:0">手机号</div>' +
-      '<input class="f-input" id="bdPhone" type="tel" maxlength="11" placeholder="请输入手机号">' +
-      '<div style="display:flex;gap:10px;margin-top:10px">' +
-      '<input class="f-input" id="bdCode" maxlength="6" placeholder="短信验证码" style="flex:1">' +
-      '<button class="lp-send" id="bdSendBtn" onclick="User.sendBindCode()">获取验证码</button></div>' +
-      '<button class="btn-save" style="margin-top:14px" onclick="User.bindPhone()">完成绑定并注册</button>' +
-      '</div>' +
-      '<div class="lp-tip">仅用于账号找回与预约通知，不会公开显示<br>演示模式验证码 123456</div>' +
-      '</div>';
-  }
-
-  function esc2(s) { return String(s || '').replace(/</g, '&lt;'); }
 
   /* ================= 路由 ================= */
   var routes = {
@@ -711,16 +680,13 @@
     'profile': pageProfile,
     'settings': pageSettings,
     'coop': pageCoop,
-    'login': pageLogin,
-    'bind': pageBind
+    'login': pageLogin
   };
 
   function render(keepScroll) {
     var h = location.hash.replace('#/', '') || 'salon';
-    /* 路由守卫：未登录强制进入登录/绑定流程 */
-    var openRoutes = ['login', 'bind'];
-    if (!Auth.isLoggedIn() && openRoutes.indexOf(h) < 0) h = 'login';
-    else if (Auth.isLoggedIn() && !Auth.hasPhone() && openRoutes.indexOf(h) < 0) h = 'bind';
+    /* 路由守卫：未登录统一进入微信授权登录页 */
+    if (!Auth.isLoggedIn() && h !== 'login') h = 'login';
     var y = window.scrollY;
     if (h.indexOf('boss/') === 0) { pageBossDetail(h.split('/')[1]); }
     else if (h.indexOf('refer/') === 0) { pageRefer(h.split('/')[1]); }
@@ -814,58 +780,17 @@
       setTimeout(function () { UI.go('#/salon'); }, 1000);
     },
 
-    /* ---------- 登录 / 注册 ---------- */
+    /* ---------- 登录（微信授权即登录，授权成功锁定身份） ---------- */
     wxLogin: function () {
       var p = Auth.isWeChat() ? Auth.wxMpLogin() : Auth.wxOpenLogin();
       if (p) p.then(function (wxUser) {
-        if (!wxUser) return;
+        if (!wxUser) return; // 真实授权模式：已跳转微信页，等待回调
         Auth.setSession(wxUser);
         Auth.syncToStore();
-        UI.toast('微信授权成功（' + (wxUser.label || '演示模式') + '）');
-        render();
-      }).catch(function (e) { UI.toast(e.message); });
-    },
-    _startCountdown: function (btnId) {
-      var btn = document.getElementById(btnId);
-      var n = 60;
-      btn.disabled = true;
-      var timer = setInterval(function () {
-        n--;
-        btn.textContent = n + 's 后重发';
-        if (n <= 0) { clearInterval(timer); btn.disabled = false; btn.textContent = '获取验证码'; }
-      }, 1000);
-    },
-    sendLoginCode: function () {
-      var phoneV = document.getElementById('lpPhone').value.trim();
-      Auth.sendSms(phoneV).then(function (r) {
-        UI.toast('验证码已发送' + (r.demoCode ? '（演示：' + r.demoCode + '）' : ''));
-        User._startCountdown('lpSendBtn');
-      }).catch(function (e) { UI.toast(e.message); });
-    },
-    phoneLogin: function () {
-      var phoneV = document.getElementById('lpPhone').value.trim();
-      var code = document.getElementById('lpCode').value.trim();
-      Auth.phoneLogin(phoneV, code).then(function () {
-        Auth.syncToStore();
-        UI.toast('登录成功，欢迎回来');
-        setTimeout(function () { UI.go('#/salon'); }, 700);
-      }).catch(function (e) { UI.toast(e.message); });
-    },
-    sendBindCode: function () {
-      var phoneV = document.getElementById('bdPhone').value.trim();
-      Auth.sendSms(phoneV).then(function (r) {
-        UI.toast('验证码已发送' + (r.demoCode ? '（演示：' + r.demoCode + '）' : ''));
-        User._startCountdown('bdSendBtn');
-      }).catch(function (e) { UI.toast(e.message); });
-    },
-    bindPhone: function () {
-      var phoneV = document.getElementById('bdPhone').value.trim();
-      var code = document.getElementById('bdCode').value.trim();
-      Auth.bindPhone(phoneV, code).then(function () {
-        Auth.syncToStore();
-        UI.toast('绑定成功，注册完成！');
-        setTimeout(function () { UI.go('#/salon'); }, 800);
-      }).catch(function (e) { UI.toast(e.message); });
+        UI.toast('微信授权成功，欢迎你（' + (wxUser.label || '演示模式') + '）');
+        if (location.hash.replace('#/', '') !== 'salon') UI.go('#/salon');
+        else render();
+      }).catch(function (e) { UI.toast(e.message || '微信授权失败'); });
     },
     logout: function () {
       Auth.logout();
