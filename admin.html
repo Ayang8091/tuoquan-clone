@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拓圈AI · 后台管理系统</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316385f'/%3E%3Ctext x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'%3E拓%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- 登录 -->
+<div class="login-mask" id="loginMask">
+  <div class="login-box">
+    <div class="lg-logo">拓</div>
+    <h2>拓圈AI · 后台管理</h2>
+    <div class="sub">hui.tuoquankj.com 管理端（复刻演示）</div>
+    <input id="loginUser" placeholder="账号" value="admin">
+    <input id="loginPass" type="password" placeholder="密码" value="123456">
+    <button class="lbtn" onclick="Admin.login()">登 录</button>
+    <div class="tip">演示账号：admin / 123456</div>
+  </div>
+</div>
+
+<div id="admin">
+<div class="layout">
+  <div class="sidebar">
+    <div class="sb-logo"><div class="mark">拓</div><div>拓圈AI 管理后台<small>拓圈科技 · 复刻演示</small></div></div>
+    <div class="sb-group">概览</div>
+    <div class="sb-item on" data-page="dashboard">📊 数据看板</div>
+    <div class="sb-group">业务管理</div>
+    <div class="sb-item" data-page="bosses">🤝 老板资源管理</div>
+    <div class="sb-item" data-page="salons">🗓️ 沙龙活动管理</div>
+    <div class="sb-item" data-page="orders">🧾 订单管理</div>
+    <div class="sb-item" data-page="users">👥 用户管理</div>
+    <div class="sb-item" data-page="distribute">💰 分销与佣金</div>
+    <div class="sb-item" data-page="leads">🧲 合作线索</div>
+    <div class="sb-group">内容与配置</div>
+    <div class="sb-item" data-page="notices">📢 公告管理</div>
+    <div class="sb-item" data-page="config">⚙️ 系统配置</div>
+    <div class="sb-foot">复刻演示版 v1.0 · 数据存于浏览器 localStorage<br>与用户端实时互通</div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="tb-title" id="tbTitle">数据看板</div>
+      <div class="tb-right">
+        <span class="role">hui.tuoquankj.com</span>
+        <div class="ava">拓</div>
+        <span class="role">admin · 超级管理员</span>
+        <button class="btn sm" onclick="Admin.logout()">退出</button>
+        <button class="btn sm primary" onclick="window.open('index.html')">打开用户端</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- 数据看板 -->
+      <div class="page on" id="page-dashboard">
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="card"><h3>近 7 日成交趋势</h3>
+          <div class="chart-wrap"><canvas id="chart" width="760" height="240"></canvas>
+            <div class="legend">
+              <span><i style="background:#1667d1"></i>订单金额（元）</span>
+              <span><i style="background:#c9a44c"></i>新增引荐</span>
+              <span><i style="background:#00b578"></i>新增锁粉</span>
+            </div>
+          </div>
+        </div>
+        <div class="card"><h3>最新订单<span class="r"><button class="btn sm" onclick="Admin.go('orders')">查看全部</button></span></h3>
+          <table id="recentOrders"></table>
+        </div>
+      </div>
+
+      <!-- 老板管理 -->
+      <div class="page" id="page-bosses">
+        <div class="card"><h3>老板资源<span class="r"><button class="btn sm primary" onclick="Admin.editBoss()">+ 新增老板</button></span></h3>
+          <div class="toolbar"><input id="bossSearch" placeholder="搜索姓名/行业/关键词" oninput="Admin.renderBosses()"></div>
+          <table id="bossTable"></table>
+        </div>
+      </div>
+
+      <!-- 沙龙管理 -->
+      <div class="page" id="page-salons">
+        <div class="card"><h3>沙龙活动<span class="r"><button class="btn sm primary" onclick="Admin.editSalon()">+ 新增沙龙</button></span></h3>
+          <table id="salonTable"></table>
+        </div>
+      </div>
+
+      <!-- 订单 -->
+      <div class="page" id="page-orders">
+        <div class="card"><h3>全部订单（会员 / 引荐 / 沙龙）</h3>
+          <div class="toolbar">
+            <select id="orderType" onchange="Admin.renderOrders()"><option value="">全部类型</option><option>会员</option><option>引荐</option><option>沙龙</option></select>
+            <select id="orderStatus" onchange="Admin.renderOrders()"><option value="">全部状态</option><option>待对接</option><option>已对接</option><option>已完成</option><option>已退款</option></select>
+          </div>
+          <table id="orderTable"></table>
+        </div>
+      </div>
+
+      <!-- 用户 -->
+      <div class="page" id="page-users">
+        <div class="card"><h3>用户管理</h3>
+          <table id="userTable"></table>
+        </div>
+      </div>
+
+      <!-- 分销佣金 -->
+      <div class="page" id="page-distribute">
+        <div class="stat-grid" id="distStats"></div>
+        <div class="card"><h3>佣金明细</h3>
+          <table id="commissionTable"></table>
+        </div>
+        <div class="card"><h3>分销客户（锁粉）</h3>
+          <table id="clientTable"></table>
+        </div>
+      </div>
+
+      <!-- 线索 -->
+      <div class="page" id="page-leads">
+        <div class="card"><h3>商务合作线索</h3>
+          <table id="leadTable"></table>
+        </div>
+      </div>
+
+      <!-- 公告 -->
+      <div class="page" id="page-notices">
+        <div class="card"><h3>公告与规则<span class="r"><button class="btn sm primary" onclick="Admin.editNotice()">+ 新增公告</button></span></h3>
+          <table id="noticeTable"></table>
+        </div>
+      </div>
+
+      <!-- 配置 -->
+      <div class="page" id="page-config">
+        <div class="card"><h3>价格与佣金</h3>
+          <div class="cfg-grid" id="cfgGrid1"></div>
+        </div>
+        <div class="card"><h3>平台信息</h3>
+          <div class="cfg-grid" id="cfgGrid2"></div>
+          <div class="save-bar"><button class="btn primary" onclick="Admin.saveConfig()">保存全部配置</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- 编辑弹层 -->
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
