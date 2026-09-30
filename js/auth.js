@@ -98,6 +98,26 @@
       return Promise.resolve(s);
     },
 
+    /* 按昵称生成演示头像（真实授权时使用微信 headimgurl） */
+    avatarFor: function (name) { return demoAvatar(name); },
+
+    /* 拉取微信头像昵称：
+     * - 已配置 AppID → 发起真实微信授权（snsapi_userinfo，回调自动更新）
+     * - 未配置（演示模式）→ 同步演示微信身份（昵称 + 头像）
+     * 返回 Promise(session) | null（真实模式已跳转） */
+    fetchProfile: function () {
+      if (CFG.mpAppId) return Auth.wxMpLogin();
+      if (!CFG.mpAppId && !Auth.isWeChat() && CFG.openAppId) return Auth.wxOpenLogin();
+      var s = Auth.getSession() || Auth.demoWx('微信授权');
+      if (!s.nickname || /^微信用户[0-9A-Z]+$/.test(s.nickname)) {
+        s.nickname = '圈友' + Math.random().toString(36).slice(2, 6).toUpperCase();
+      }
+      s.avatar = demoAvatar(s.nickname);
+      s.wxNicknameBound = true;
+      Auth.setSession(s);
+      return Promise.resolve(s);
+    },
+
     /* ---------- 手机号绑定（已移除：登录流程 = 微信授权即登录） ---------- */
 
     /* 同步登录态到业务数据层（昵称/手机号） */

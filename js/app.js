@@ -255,7 +255,7 @@
   function pageMe() {
     var db = S.get(), u = db.user;
     var items = [
-      ['🙋', '获取微信头像昵称', u.wxNicknameBound ? '已绑定微信' : '', ''],
+      ['🙋', '获取微信头像昵称', u.wxNicknameBound ? '已绑定微信' : '', 'wxprofile'],
       ['👑', '会员中心 / 续费', '', '#/member'],
       ['🎫', '我的沙龙凭证', '', '#/tickets'],
       ['🤝', '我的引荐凭证', '', '#/refvouchers'],
@@ -717,7 +717,18 @@
   var User = window.User = {
     menuClick: function (target) {
       if (target === 'service') { UI.toast('客服微信：' + S.get().config.serviceWechat + '（已复制）'); UI.copy(S.get().config.serviceWechat); return; }
+      if (target === 'wxprofile') { User.fetchWxProfile(); return; }
       UI.go(target || '#/me');
+    },
+    /* 获取微信头像昵称：真实授权走微信网页授权；演示模式同步身份并刷新头像 */
+    fetchWxProfile: function () {
+      var p = Auth.fetchProfile();
+      if (!p) return; // 真实授权模式：已跳转微信，回调后自动更新
+      p.then(function (s) {
+        Auth.syncToStore();
+        UI.toast('已获取微信头像昵称' + (s.demo ? '（演示模式）' : ''));
+        render();
+      }).catch(function (e) { UI.toast(e.message || '获取失败'); });
     },
     payMember: function () {
       var db = S.get(), c = db.config;
