@@ -1,5 +1,5 @@
 /* ============================================================
- * 拓圈AI · 复刻系统 —— 后台管理端样式（桌面端）
+ * 乐道AI · 复刻系统 —— 后台管理端样式（桌面端）
  * ============================================================ */
 :root {
   --bg: #f5f6f8;
@@ -27,7 +27,7 @@ a { text-decoration: none; color: inherit; }
 /* ---------- 登录 ---------- */
 .login-mask { position: fixed; inset: 0; background: linear-gradient(135deg, #16385f, #0b1526); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .login-box { background: #fff; border-radius: 16px; padding: 36px 34px; width: 360px; }
-.login-box .lg-logo { width: 48px; height: 48px; border-radius: 12px; background: var(--blue-deep); color: #fff; font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+.login-box .lg-logo { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; display: block; margin: 0 auto 12px; }
 .login-box h2 { text-align: center; font-size: 18px; }
 .login-box .sub { text-align: center; color: var(--txt2); font-size: 12px; margin: 6px 0 22px; }
 .login-box input { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; margin-bottom: 12px; }
@@ -44,7 +44,7 @@ a { text-decoration: none; color: inherit; }
 .layout { display: flex; min-height: 100vh; }
 .sidebar { width: 220px; background: var(--sidebar); color: #b7c3d4; position: fixed; top: 0; bottom: 0; left: 0; display: flex; flex-direction: column; z-index: 10; }
 .sb-logo { display: flex; align-items: center; gap: 10px; padding: 20px 18px 16px; color: #fff; font-weight: 700; font-size: 16px; }
-.sb-logo .mark { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg,#2a6cc4,#16385f); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.sb-logo .mark { width: 32px; height: 32px; border-radius: 9px; object-fit: cover; display: block; }
 .sb-logo small { display: block; font-size: 10px; color: #5f7189; font-weight: 400; }
 .sb-group { font-size: 11px; color: #5f7189; padding: 14px 20px 6px; }
 .sb-item { padding: 11px 20px; cursor: pointer; font-size: 13.5px; display: flex; align-items: center; gap: 10px; border-left: 3px solid transparent; }
@@ -56,7 +56,7 @@ a { text-decoration: none; color: inherit; }
 .topbar { height: 56px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 24px; position: sticky; top: 0; z-index: 9; }
 .topbar .tb-title { font-size: 16px; font-weight: 700; }
 .topbar .tb-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.topbar .ava { width: 30px; height: 30px; border-radius: 50%; background: var(--blue-deep); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.topbar .ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: block; }
 .topbar .role { font-size: 12px; color: var(--txt2); }
 .content { padding: 20px 24px 40px; flex: 1; }
 .page { display: none; }

@@ -1,5 +1,5 @@
 /* ============================================================
- * 拓圈AI · 复刻系统 —— 数据层
+ * 乐道AI · 复刻系统 —— 数据层
  * 使用 localStorage 作为数据库，key: TQ_DB_V1
  * 用户端与后台共用同一份数据，后台改动实时反映到用户端
  * ============================================================ */
@@ -21,7 +21,7 @@
     return {
       /* ---------- 系统配置（后台可改） ---------- */
       config: {
-        siteName: '拓圈AI',
+        siteName: '乐道AI',
         domain: 'hui.tuoquankj.com',
         memberPrice: 1980,
         referralPrice: 100,
@@ -29,7 +29,7 @@
         salonCommissionRate: 50,    // 沙龙佣金 %
         lockDays: 60,               // 锁粉有效期（天）
         refundHours: 24,            // 引荐超时未对接自动退款（小时）
-        organizer: '深圳市拓圈科技有限公司',
+        organizer: '深圳市乐道科技有限公司',
         salonHeld: '已发起100期AI出海相关主题线下沙龙',
         privatePool: '老板私域 20000+',
         serviceWechat: 'tuquan-keeper',
@@ -96,10 +96,10 @@
           feedbackImgs: 2, sceneImgs: 2
         },
         {
-          id: 'b_005', name: '香樟君', title: '拓圈科技创始人', tag: 'AI自媒体',
+          id: 'b_005', name: '香樟君', title: '乐道科技创始人', tag: 'AI自媒体',
           badges: ['12年新媒体实战玩家', '已发起至少100场AI沙龙', '自运营抖音账号香樟君32万粉丝'],
-          desc: '拓圈AI·拓圈科技创始人',
-          detail: '12 年新媒体实战玩家，已发起至少 100 场 AI 沙龙，自运营抖音账号「香樟君」32 万粉丝。拓圈 AI·拓圈科技创始人，长期实地探访出海工厂、跨境公司、AI 标杆企业，所有资源均为线下实拍、真人对接、亲自筛选。',
+          desc: '乐道AI·乐道科技创始人',
+          detail: '12 年新媒体实战玩家，已发起至少 100 场 AI 沙龙，自运营抖音账号「香樟君」32 万粉丝。乐道AI·乐道科技创始人，长期实地探访出海工厂、跨境公司、AI 标杆企业，所有资源均为线下实拍、真人对接、亲自筛选。',
           matched: 31, salons: 1, price: 100, cover: 'class', video: true, onShelf: true,
           feedbackImgs: 2, sceneImgs: 2
         }
@@ -109,7 +109,7 @@
       salons: [
         {
           id: 's_001', title: 'AI出海·跨境资源对接沙龙（第101期）', date: d(7), city: '深圳',
-          place: '龙华区·拓圈沙龙基地', seats: 60, joined: 0,
+          place: '龙华区·乐道沙龙基地', seats: 60, joined: 0,
           status: '筹备中', desc: '主理人正在筹备下一场沙龙，敬请期待', banner: 'boss'
         },
         {
@@ -152,7 +152,7 @@
 
       /* ---------- 合作线索（商务合作申请） ---------- */
       leads: [
-        { id: 'l_3001', name: '李厂长', biz: '做3C配件工厂，客户是亚马逊卖家', result: '月供货 50 万', coopTypes: ['供货'], coopDetail: '我有供应链，想给拓圈的老板供货分成', budget: '5-10万', contact: '138****2200', status: '待跟进', from: '梓的海报', time: d(-2) + ' 10:18' }
+        { id: 'l_3001', name: '李厂长', biz: '做3C配件工厂，客户是亚马逊卖家', result: '月供货 50 万', coopTypes: ['供货'], coopDetail: '我有供应链，想给乐道的老板供货分成', budget: '5-10万', contact: '138****2200', status: '待跟进', from: '梓的海报', time: d(-2) + ' 10:18' }
       ],
 
       /* ---------- 佣金明细 ---------- */

@@ -1,5 +1,5 @@
 /* ============================================================
- * 拓圈AI · 复刻系统 —— 用户端逻辑（SPA · hash 路由）
+ * 乐道AI · 复刻系统 —— 用户端逻辑（SPA · hash 路由）
  * ============================================================ */
 (function () {
   'use strict';
@@ -261,7 +261,7 @@
       ['🤝', '我的引荐凭证', '', '#/refvouchers'],
       ['💰', '分销中心', u.distributeEnabled ? '已开通' : '', '#/distribute', u.distributeEnabled],
       ['🧾', '我的支付记录', '', '#/payments'],
-      ['💼', '商务合作', u.profile.hasResource ? '有资源' : '有资源 / 有预算 · 找拓圈谈', '#/coop'],
+      ['💼', '商务合作', u.profile.hasResource ? '有资源' : '有资源 / 有预算 · 找乐道谈', '#/coop'],
       ['💬', '联系客服', '', 'service'],
       ['🔑', '登录 / 切换账号', '', '#/login'],
       ['⚙️', '设置', '', '#/settings']
@@ -296,7 +296,7 @@
       '<div class="mp-org">主办方：' + c.organizer + ' · ' + c.salonHeld + ' · ' + c.privatePool + '<br>开通后由主理人一对一对接，不是买完就没人管。</div>' +
       '</div>' +
 
-      '<div class="mp-sec"><div class="mp-num">01</div><div class="mp-h2">为什么值得加入拓圈·出海会员圈子？</div>' +
+      '<div class="mp-sec"><div class="mp-num">01</div><div class="mp-h2">为什么值得加入乐道·出海会员圈子？</div>' +
       '<div class="mp-p">我们深耕 AI 出海自媒体赛道，持续落地线下沙龙、长期实地探访出海工厂、跨境公司、AI 标杆企业。所有资源均为线下实拍、真人对接、亲自筛选，不是网络杂牌资源。</div>' +
       '<div class="mp-grid2">' +
       [['01', '真实一手资源', '所有老板资源全部实地探访、当面筛选，真实靠谱可对接'],
@@ -401,7 +401,7 @@
     phone.innerHTML = '' +
       '<div class="share-page">' +
       '<div class="sp-t">转发给好友</div><div class="sp-s">微信小程序卡片 · 链接自动携带分销参数</div>' +
-      '<div class="share-card"><div class="share-logo">拓</div><div><div class="sc-t">拓圈AI · AI 老板资源圈</div><div class="sc-s">AI 自媒体老板圈子 · 会员 · 沙龙</div></div></div>' +
+      '<div class="share-card"><img class="share-logo" src="img/logo-icon.png?v=103" alt=""><div><div class="sc-t">乐道AI · AI 老板资源圈</div><div class="sc-s">AI 自媒体老板圈子 · 会员 · 沙龙</div></div></div>' +
       '<div class="share-tip">✅ 好友点开这个链接就自动锁粉到 <b>' + u.nickname + '</b> 名下，他买任何产品（会员/沙龙）佣金都归你 —— 无需海报，转发即分销</div>' +
       '<button class="btn-wechat" onclick="UI.toast(\'已复制链接，去微信粘贴给好友即可\')">复制链接 · 发给好友</button>' +
       '<button class="btn-plain" onclick="UI.go(\'#/distribute\')">关闭</button>' +
@@ -417,7 +417,7 @@
       '<div class="pp-s">二维码是你的专属锁粉链接 · 谁扫谁就是你的客户 · 长按图片保存到相册</div>' +
       '<div class="poster">' +
       '<div class="po-k">' + S.get().config.organizer.replace('市', '市 ') + ' · 商务合作</div>' +
-      '<div class="po-big">跟拓圈牵手合作</div>' +
+      '<div class="po-big">跟乐道牵手合作</div>' +
       '<div class="po-sub">深圳 AI 自媒体 MCN · 16000+ 私域老板</div>' +
       '<div class="po-sec">合作流程</div>' +
       '<div class="po-step"><div class="n">1</div><div><div class="t">扫码填表</div><div class="d">30 秒，说清你是做什么的</div></div></div>' +
@@ -597,7 +597,7 @@
       '<button class="btn-ghost" style="margin-top:6px" onclick="UI.go(\'#/profile\')">编辑个人资料</button></div>' +
       '<button class="btn-save" onclick="User.saveSettings()">保存资料</button>' +
       '<button class="btn-plain" style="margin-top:12px;color:var(--red);border-color:#f5d5d5" onclick="User.logout()">退出登录</button>' +
-      '<div style="text-align:center;color:var(--txt3);font-size:11px;margin-top:16px">拓圈AI 复刻系统 · 演示版本 v1.0</div></div>';
+      '<div style="text-align:center;color:var(--txt3);font-size:11px;margin-top:16px">乐道AI 复刻系统 · 演示版本 v1.0</div></div>';
   }
 
   /* ================= 页面：商务合作表单 ================= */
@@ -617,7 +617,7 @@
         return '<span class="chip" data-v="' + c + '">' + c + '</span>';
       }).join('') + '</div>' +
       '<div class="f-label" style="margin-top:16px">具体怎么合作</div>' +
-      '<textarea class="f-textarea" id="coDetail" placeholder="具体怎么合作，比如：我有供应链，想给拓圈的老板供货分成"></textarea></div>' +
+      '<textarea class="f-textarea" id="coDetail" placeholder="具体怎么合作，比如：我有供应链，想给乐道的老板供货分成"></textarea></div>' +
       '<div class="form-card"><div class="f-label">有没有预算 <span class="opt">选填</span></div>' +
       '<div class="chips" id="budgetChips">' +
       ['1万内', '1-5万', '5-10万', '10万+'].map(function (c) { return '<span class="chip" data-v="' + c + '">' + c + '</span>'; }).join('') + '</div></div>' +
@@ -649,8 +649,8 @@
     var inWx = Auth.isWeChat();
     phone.innerHTML = '' +
       '<div class="login-page">' +
-      '<div class="lp-logo">拓</div>' +
-      '<div class="lp-name">拓圈AI</div>' +
+      '<img class="lp-logo" src="img/logo-icon.png?v=103" alt="乐道AI">' +
+      '<div class="lp-name">乐道AI</div>' +
       '<div class="lp-slogan">AI 出海 · 年度老板会员圈子</div>' +
       '<button class="lp-wx" onclick="User.wxLogin()">' +
       '<svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M9.5 4C5.9 4 3 6.5 3 9.6c0 1.8 1 3.4 2.5 4.5l-.7 2.1 2.4-1.2c.7.2 1.5.3 2.3.3h.4A5.6 5.6 0 0 1 9.6 13c0-3 2.9-5.4 6.4-5.4h.3C15.6 5.5 12.8 4 9.5 4zm-2 3.5a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zm4.5 0a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8zM16 8.6c-3.2 0-5.8 2.1-5.8 4.7s2.6 4.7 5.8 4.7c.6 0 1.2-.1 1.8-.3l2 1-.6-1.7c1.3-.9 2.2-2.2 2.2-3.7 0-2.6-2.6-4.7-5.4-4.7zm-1.8 2.9a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm3.6 0a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z"/></svg>' +

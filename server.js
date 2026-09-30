@@ -1,5 +1,5 @@
 /* ============================================================
- * 拓圈AI · 复刻系统 —— 轻量后端（零依赖，node server.js）
+ * 乐道AI · 复刻系统 —— 轻量后端（零依赖，node server.js）
  * ------------------------------------------------------------
  * 职责：
  *   1. 托管静态前端（index.html / admin.html）
@@ -112,6 +112,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   const mode = WX_APPID ? '真实微信授权' : '演示模式（未配置 WX_APPID）';
-  console.log(`拓圈AI 服务已启动: http://localhost:${PORT}`);
+  console.log(`乐道AI 服务已启动: http://localhost:${PORT}`);
   console.log(`登录模式: ${mode} | 授权成功即登录（无手机号绑定）`);
 });
