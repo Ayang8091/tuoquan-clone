@@ -163,15 +163,36 @@
     input.oninput = function () { window._bossKw = input.value; render(true); };
   }
 
-  function bossCard(b) {
-    return '<div class="boss-card">' +
-      (b.video && b.cover ? '<div class="boss-cover" style="' + coverStyle(b.cover) + '" onclick="UI.go(\'#/boss/' + b.id + '\')">' +
+  function bossCoverHtml(b) {
+    /* 视频封面：后台上传/自动抓取的封面图 → 点击直接跳转视频号播放；否则回退渐变样式 */
+    if (b.videoCover) {
+      return '<div class="boss-cover" style="height:190px" onclick="User.openVideo(\'' + b.id + '\')">' +
+        '<img src="' + b.videoCover + '" style="width:100%;height:100%;object-fit:cover;display:block">' +
+        '<div class="play"></div>' +
+        (b.videoUrl ? '<div style="position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;border-radius:10px;padding:2px 8px">视频号 ▶</div>' : '') +
+        '</div>';
+    }
+    if (b.video && b.cover) {
+      return '<div class="boss-cover" style="' + coverStyle(b.cover) + '" onclick="User.openVideo(\'' + b.id + '\')">' +
         '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:17px;text-shadow:0 1px 6px rgba(0,0,0,.5)">' +
         (b.cover === 'codex' ? 'Codex · AI时代的超级助手' : b.cover === 'sea' ? '所有国内生意<br>都值得用海外社媒再做一遍' : '') + '</div>' +
-        '<div class="play"></div></div>' : '') +
+        '<div class="play"></div></div>';
+    }
+    return '';
+  }
+
+  function avaHtml(b, size) {
+    return b.avatarImg
+      ? '<img class="boss-ava" src="' + b.avatarImg + '" style="width:' + size + 'px;height:' + size + 'px;object-fit:cover">'
+      : '<div class="boss-ava"' + (size !== 46 ? ' style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * .5) + 'px"' : '') + '>' + b.name[0] + '</div>';
+  }
+
+  function bossCard(b) {
+    return '<div class="boss-card">' +
+      bossCoverHtml(b) +
       '<div class="boss-inner">' +
       '<div class="boss-top" onclick="UI.go(\'#/boss/' + b.id + '\')">' +
-      '<div class="boss-ava">' + b.name[0] + '</div>' +
+      avaHtml(b, 46) +
       '<div><div class="boss-name">' + b.name + '</div><div class="boss-title">' + b.title + '</div></div>' +
       '<span class="arrow">›</span></div>' +
       '<div><span class="tag">' + b.tag + '</span></div>' +
@@ -189,8 +210,9 @@
     if (!b) { phone.innerHTML = pagebar('老板名片', '#/boss') + '<div class="empty-salon">老板不存在</div>'; return; }
     var html = pagebar('老板名片', '#/boss') +
       '<div class="boss-detail">' +
+      bossCoverHtml(b) +
       '<div class="bd-card"><div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">' +
-      '<div class="boss-ava" style="width:60px;height:60px;font-size:24px">' + b.name[0] + '</div>' +
+      avaHtml(b, 60) +
       '<div><div class="boss-name" style="font-size:19px">' + b.name + '</div><div class="boss-title" style="margin-top:4px">' + b.title + '</div></div></div>' +
       '<span class="tag">' + b.tag + '</span>' +
       '<div class="b-badges" style="margin-bottom:12px">' + b.badges.map(function (x) { return '<span class="b-badge">🏆 ' + x + '</span>'; }).join('') + '</div>' +
@@ -203,7 +225,9 @@
       '</div></div>' +
 
       '<div class="bd-card"><h4>📸 沙龙现场</h4><div class="img-grid">' +
-      '<div class="ph"><span>沙龙分享现场</span></div><div class="ph"><span>现场对接交流</span></div>' +
+      ((b.photos && b.photos.length)
+        ? b.photos.map(function (src) { return '<div class="ph"><img src="' + src + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px"></div>'; }).join('')
+        : '<div class="ph"><span>沙龙分享现场</span></div><div class="ph"><span>现场对接交流</span></div>') +
       '</div></div>' +
 
       '<div class="bd-card"><h4>如何引荐</h4><div class="how-steps">' +
@@ -637,7 +661,12 @@
       '<div class="bd-card"><div class="boss-name" style="font-size:19px">' + s.title + '</div>' +
       '<div style="margin-top:10px;font-size:13.5px;color:#555;line-height:2">🗓️ ' + s.date + '<br>📍 ' + s.city + ' · ' + s.place + '<br>👥 名额 ' + s.seats + ' · 已报名 ' + s.joined + '</div>' +
       '<div style="margin-top:10px"><span class="tag">' + s.status + '</span></div>' +
-      '<div class="bd-text" style="margin-top:12px">' + s.desc + '</div></div>' +
+      '<div class="bd-text" style="margin-top:12px">' + s.desc + '</div>' +
+      ((s.photos && s.photos.length)
+        ? '<div style="margin-top:14px"><h4 style="margin-bottom:10px">📸 沙龙现场</h4><div class="img-grid">' +
+          s.photos.map(function (src) { return '<div class="ph"><img src="' + src + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px"></div>'; }).join('') +
+          '</div></div>' : '') +
+      '</div>' +
       (s.status === '报名中' ?
         '<div style="padding:2px 0 14px"><button class="btn-primary" onclick="User.joinSalon(\'' + s.id + '\')">立即报名</button></div>' :
         '<div class="bd-foot-hint">当前' + s.status + '，暂不可报名</div>') +
@@ -758,6 +787,17 @@
       S.save();
       UI.toast('报名成功！凭证已生成');
       setTimeout(function () { UI.go('#/tickets'); }, 900);
+    },
+    /* 点击视频封面 → 跳转视频号播放；未配置链接时进名片详情 */
+    openVideo: function (bid) {
+      var db = S.get(), b = db.bosses.find(function (x) { return x.id === bid; });
+      if (!b) return;
+      if (b.videoUrl) {
+        UI.toast('正在打开视频号...');
+        window.open(b.videoUrl, '_blank');
+      } else {
+        UI.go('#/boss/' + bid);
+      }
     },
     saveProfile: function () {
       var db = S.get(), p = db.user.profile;

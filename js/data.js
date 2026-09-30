@@ -69,7 +69,8 @@
           desc: '专注 TikTok To-C 零售带货与社媒 To-B 外贸询盘获客双赛道，依托 AI 自动化技术，为个人创业者、源头工厂、外贸企业',
           detail: '专注 TikTok To-C 零售带货与社媒 To-B 外贸询盘获客双赛道，依托 AI 自动化技术，为个人创业者、源头工厂、外贸企业提供双向出海服务。手握产业供应链资源、全套 AI 出海工具与成熟海外团队，可提供工厂直连、工具配置、团队搭建的全流程陪跑。',
           matched: 1, salons: 0, price: 100, cover: '', video: true, onShelf: true,
-          feedbackImgs: 2, sceneImgs: 2
+          feedbackImgs: 2, sceneImgs: 2,
+          videoUrl: '', videoCover: '', avatarImg: '', photos: []
         },
         {
           id: 'b_002', name: '江文鑫', title: '趣猫娱乐科技创始人', tag: '游戏科技',
@@ -77,7 +78,8 @@
           desc: '深耕AI小游戏8年，累计广告变现3000万+，输出可落地小游戏变现整套闭环',
           detail: '深耕 AI 小游戏赛道 8 年，累计广告变现 3000万+；拥有成熟 AI 小游戏全套开发、投流、变现闭环体系，可输出可二开游戏源码、AI 游戏生产流水线、投流跑量方法话术。适合对接：想入局小游戏变现的创业者、广告投流从业者、想搭建 AI 小游戏业务的团队，可提供源码交付、项目陪跑、业务落地咨询。',
           matched: 12, salons: 0, price: 100, cover: '', video: false, onShelf: true,
-          feedbackImgs: 2, sceneImgs: 2
+          feedbackImgs: 2, sceneImgs: 2,
+          videoUrl: '', videoCover: '', avatarImg: '', photos: []
         },
         {
           id: 'b_003', name: '陈晨', title: 'Codex自动化应用实战派玩家', tag: 'AI探索/AI自动化应用',
@@ -85,7 +87,8 @@
           desc: 'Codex自动化应用实战派玩家',
           detail: 'Codex 自动化应用实战派玩家，已经发起 Codex 沙龙 50+ 场，帮助 100+ 老板通过 AI 短视频拿到结果。擅长把 AI 自动化落到真实业务流：内容生产、私域运营、短视频矩阵均有成熟实操路径。',
           matched: 20, salons: 1, price: 100, cover: 'codex', video: true, onShelf: true,
-          feedbackImgs: 2, sceneImgs: 2
+          feedbackImgs: 2, sceneImgs: 2,
+          videoUrl: '', videoCover: '', avatarImg: '', photos: []
         },
         {
           id: 'b_004', name: '仲达', title: 'AI海外社媒爆款视频操盘手', tag: '外贸/出海',
@@ -93,7 +96,8 @@
           desc: '5年跨境出海实战经验 AI出海全域操盘负责人',
           detail: '打造 Facebook 三地和 Instagram 五千万粉丝矩阵体系，结合 TikTok 矩阵流量截流、公域到私域自动获客系统，精准触达海外批发商、采购商、经销商，低成本获取高质量外贸询盘，搭建稳定长效海外 B 端客源渠道。',
           matched: 12, salons: 2, price: 100, cover: 'sea', video: true, onShelf: true,
-          feedbackImgs: 2, sceneImgs: 2
+          feedbackImgs: 2, sceneImgs: 2,
+          videoUrl: '', videoCover: '', avatarImg: '', photos: []
         },
         {
           id: 'b_005', name: '香樟君', title: '乐道科技创始人', tag: 'AI自媒体',
@@ -101,7 +105,8 @@
           desc: '乐道AI·乐道科技创始人',
           detail: '12 年新媒体实战玩家，已发起至少 100 场 AI 沙龙，自运营抖音账号「香樟君」32 万粉丝。乐道AI·乐道科技创始人，长期实地探访出海工厂、跨境公司、AI 标杆企业，所有资源均为线下实拍、真人对接、亲自筛选。',
           matched: 31, salons: 1, price: 100, cover: 'class', video: true, onShelf: true,
-          feedbackImgs: 2, sceneImgs: 2
+          feedbackImgs: 2, sceneImgs: 2,
+          videoUrl: '', videoCover: '', avatarImg: '', photos: []
         }
       ],
 
@@ -110,12 +115,12 @@
         {
           id: 's_001', title: 'AI出海·跨境资源对接沙龙（第101期）', date: d(7), city: '深圳',
           place: '龙华区·乐道沙龙基地', seats: 60, joined: 0,
-          status: '筹备中', desc: '主理人正在筹备下一场沙龙，敬请期待', banner: 'boss'
+          status: '筹备中', desc: '主理人正在筹备下一场沙龙，敬请期待', banner: 'boss', photos: []
         },
         {
           id: 's_002', title: 'AI自动化实战沙龙（第100期）', date: d(-14), city: '深圳',
           place: '南山区·科技园', seats: 60, joined: 60,
-          status: '已结束', desc: 'Codex 商业化 AI 实战公开课', banner: 'codex'
+          status: '已结束', desc: 'Codex 商业化 AI 实战公开课', banner: 'codex', photos: []
         }
       ],
 

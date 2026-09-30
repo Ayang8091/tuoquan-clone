@@ -169,7 +169,8 @@
     },
     editBoss: function (id) {
       var db = S.get();
-      var b = db.bosses.find(function (x) { return x.id === id; }) || { name: '', title: '', tag: '', badges: [], desc: '', detail: '', price: 100, onShelf: true, video: false, cover: '' };
+      var b = db.bosses.find(function (x) { return x.id === id; }) || { name: '', title: '', tag: '', badges: [], desc: '', detail: '', price: 100, onShelf: true, video: false, cover: '', videoUrl: '', videoCover: '', avatarImg: '', photos: [] };
+      window._editTemp = { videoCover: b.videoCover || '', avatarImg: b.avatarImg || '', photos: (b.photos || []).slice(), legacyCover: b.cover || '' };
       modal('<h3>' + (id ? '编辑老板' : '新增老板') + '</h3>' +
         '<div class="mrow">' +
         '<div class="f"><label>姓名</label><input id="mName" value="' + esc(b.name) + '"></div>' +
@@ -179,11 +180,87 @@
         '<div class="f"><label>亮点（每行一条）</label><textarea id="mBadges">' + esc(b.badges.join('\n')) + '</textarea></div>' +
         '<div class="f"><label>列表简介</label><textarea id="mDesc">' + esc(b.desc) + '</textarea></div>' +
         '<div class="f"><label>名片详情</label><textarea id="mDetail">' + esc(b.detail) + '</textarea></div>' +
+        '<div class="f"><label>视频号链接（粘贴后点「抓取封面」，用户端点击封面直接跳转播放）</label>' +
+        '<div style="display:flex;gap:8px"><input id="mVideoUrl" value="' + esc(b.videoUrl || '') + '" placeholder="https://channels.weixin.qq.com/... 或视频号分享链接" style="flex:1">' +
+        '<button class="btn sm" onclick="Admin.grabCover()">抓取封面</button></div></div>' +
         '<div class="mrow">' +
-        '<div class="f"><label>封面（空=无视频头图）</label><select id="mCover"><option value="">无</option>' +
-        ['codex', 'sea', 'class', 'boss', 'party'].map(function (c) { return '<option ' + (b.cover === c ? 'selected' : '') + '>' + c + '</option>'; }).join('') + '</select></div>' +
+        '<div class="f"><label>视频封面图（自动抓取或上传，900×450 自动裁剪压缩）</label>' +
+        '<div style="display:flex;gap:10px;align-items:center">' +
+        '<img id="pvCover" src="' + (window._editTemp.videoCover || '') + '" style="width:120px;height:60px;object-fit:cover;border-radius:8px;background:#f0f2f5;' + (window._editTemp.videoCover ? '' : 'display:none') + '">' +
+        '<div><button class="btn sm" onclick="Admin.upCover()">📤 上传封面</button>' +
+        '<div style="font-size:11px;color:#86909c;margin-top:4px" id="pvCoverTip">' + (window._editTemp.videoCover ? '已设置封面' : '未设置 · 无封面时展示默认样式') + '</div></div></div></div>' +
+        '<div class="f"><label>老板头像（自动方形裁剪压缩至 300px）</label>' +
+        '<div style="display:flex;gap:10px;align-items:center">' +
+        '<img id="pvAva" src="' + (window._editTemp.avatarImg || '') + '" style="width:56px;height:56px;object-fit:cover;border-radius:50%;background:#f0f2f5;' + (window._editTemp.avatarImg ? '' : 'display:none') + '">' +
+        '<div><button class="btn sm" onclick="Admin.upAva()">📤 上传头像</button>' +
+        '<div style="font-size:11px;color:#86909c;margin-top:4px" id="pvAvaTip">' + (window._editTemp.avatarImg ? '已设置头像' : '未设置 · 显示姓名首字') + '</div></div></div></div></div>' +
+        '<div class="f"><label>沙龙现场照片（可多选，自动压缩适配尺寸）</label>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pvPhotos"></div>' +
+        '<button class="btn sm" onclick="Admin.upPhotos()" style="margin-top:8px">📤 上传现场照片</button></div>' +
+        '<div class="mrow">' +
         '<div class="f"><label>上架</label><select id="mOn"><option value="1" ' + (b.onShelf ? 'selected' : '') + '>上架</option><option value="0" ' + (!b.onShelf ? 'selected' : '') + '>下架</option></select></div></div>' +
         '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveBoss(\'' + (id || '') + '\')">保存</button></div>');
+      Admin.renderPhotoPv();
+    },
+    renderPhotoPv: function () {
+      var box = document.getElementById('pvPhotos');
+      if (!box) return;
+      var t = window._editTemp;
+      box.innerHTML = t.photos.map(function (src, i) {
+        return '<span style="position:relative;display:inline-block"><img src="' + src + '" style="width:64px;height:44px;object-fit:cover;border-radius:6px">' +
+          '<span onclick="Admin.delPhoto(' + i + ')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#f53f3f;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer">✕</span></span>';
+      }).join('') + (t.photos.length ? '' : '<span style="font-size:12px;color:#86909c">暂无照片</span>');
+    },
+    delPhoto: function (i) { window._editTemp.photos.splice(i, 1); Admin.renderPhotoPv(); },
+    upPhotos: function () {
+      ImgUp.pick({ ratio: 0, max: 1000, quality: 0.8, multiple: true }, function (urls) {
+        window._editTemp.photos = window._editTemp.photos.concat(urls);
+        Admin.renderPhotoPv();
+        toast('已压缩并添加 ' + urls.length + ' 张');
+      });
+    },
+    upCover: function () {
+      ImgUp.pick({ ratio: 2, max: 900, quality: 0.82 }, function (urls) {
+        window._editTemp.videoCover = urls[0];
+        var pv = document.getElementById('pvCover');
+        pv.src = urls[0]; pv.style.display = '';
+        document.getElementById('pvCoverTip').textContent = '已设置封面（' + Math.round(urls[0].length / 1365) + 'KB）';
+      });
+    },
+    upAva: function () {
+      ImgUp.pick({ ratio: 1, max: 300, quality: 0.85 }, function (urls) {
+        window._editTemp.avatarImg = urls[0];
+        var pv = document.getElementById('pvAva');
+        pv.src = urls[0]; pv.style.display = '';
+        document.getElementById('pvAvaTip').textContent = '已设置头像';
+      });
+    },
+    grabCover: function () {
+      var u = document.getElementById('mVideoUrl').value.trim();
+      if (!u) { toast('请先粘贴视频号链接'); return; }
+      toast('正在抓取封面...');
+      var base = location.origin.startsWith('http') ? location.origin : '';
+      fetch(base + '/api/video/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) })
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (r.ok && r.cover) {
+            var img = new Image();
+            img.crossOrigin = '';
+            img.onload = function () {
+              var cv = document.createElement('canvas');
+              var s = Math.min(img.naturalWidth, img.naturalHeight * 2);
+              cv.width = 900; cv.height = 450;
+              cv.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, 0, s, s / 2, 0, 0, 900, 450);
+              window._editTemp.videoCover = cv.toDataURL('image/jpeg', 0.82);
+              var pv = document.getElementById('pvCover');
+              pv.src = window._editTemp.videoCover; pv.style.display = '';
+              document.getElementById('pvCoverTip').textContent = '已自动抓取封面';
+              toast('封面抓取成功');
+            };
+            img.onerror = function () { toast('封面图加载失败，请手动上传'); };
+            img.src = r.cover;
+          } else toast(r.msg || '未抓取到封面，请手动上传');
+        }).catch(function () { toast('抓取失败，请手动上传封面'); });
     },
     saveBoss: function (id) {
       var db = S.get();
@@ -192,7 +269,11 @@
         tag: document.getElementById('mTag').value, price: +document.getElementById('mPrice').value || 100,
         badges: document.getElementById('mBadges').value.split('\n').filter(function (x) { return x.trim(); }),
         desc: document.getElementById('mDesc').value, detail: document.getElementById('mDetail').value,
-        cover: document.getElementById('mCover').value, video: !!document.getElementById('mCover').value,
+        videoUrl: document.getElementById('mVideoUrl').value.trim(),
+        videoCover: window._editTemp.videoCover || '', avatarImg: window._editTemp.avatarImg || '',
+        photos: window._editTemp.photos || [],
+        cover: window._editTemp.legacyCover || '',
+        video: !!(document.getElementById('mVideoUrl').value.trim() || window._editTemp.videoCover),
         onShelf: document.getElementById('mOn').value === '1'
       };
       if (!data.name) { toast('请填写姓名'); return; }
@@ -236,7 +317,19 @@
         '<div class="f"><label>名额</label><input id="mSeats" type="number" value="' + s.seats + '"></div>' +
         '<div class="f"><label>状态</label><select id="mStatus">' + ['筹备中', '报名中', '已结束'].map(function (x) { return '<option ' + (s.status === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>' +
         '<div class="f"><label>描述</label><textarea id="mDesc">' + esc(s.desc) + '</textarea></div>' +
+        '<div class="f"><label>现场照片（可多选，自动压缩适配尺寸）</label>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pvPhotos"></div>' +
+        '<button class="btn sm" onclick="Admin.upSalonPhotos()" style="margin-top:8px">📤 上传现场照片</button></div>' +
         '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveSalon(\'' + (id || '') + '\')">保存</button></div>');
+      window._editTemp = { photos: (s.photos || []).slice() };
+      Admin.renderPhotoPv();
+    },
+    upSalonPhotos: function () {
+      ImgUp.pick({ ratio: 0, max: 1000, quality: 0.8, multiple: true }, function (urls) {
+        window._editTemp.photos = window._editTemp.photos.concat(urls);
+        Admin.renderPhotoPv();
+        toast('已压缩并添加 ' + urls.length + ' 张');
+      });
     },
     saveSalon: function (id) {
       var db = S.get();
@@ -244,7 +337,8 @@
         title: document.getElementById('mTitle').value, date: document.getElementById('mDate').value,
         city: document.getElementById('mCity').value, place: document.getElementById('mPlace').value,
         seats: +document.getElementById('mSeats').value || 60, status: document.getElementById('mStatus').value,
-        desc: document.getElementById('mDesc').value
+        desc: document.getElementById('mDesc').value,
+        photos: window._editTemp.photos || []
       };
       if (!data.title) { toast('请填写标题'); return; }
       if (id) { Object.assign(db.salons.find(function (x) { return x.id === id; }), data); }

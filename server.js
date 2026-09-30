@@ -78,6 +78,43 @@ const apiHandlers = {
     } catch (e) {
       json(res, 500, { ok: false, msg: String(e.message || e) });
     }
+  },
+
+  /* 视频号/网页链接 → 抓取封面图与标题（og:image），失败时前端回退为手动上传封面 */
+  'video/resolve': async (body, res) => {
+    const target = String(body.url || '').trim();
+    if (!/^https?:\/\//i.test(target)) return json(res, 200, { ok: false, msg: '链接格式不正确' });
+    const UA = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49' };
+    const fetchText = (u) => new Promise((resolve, reject) => {
+      const req = https.get(u, { headers: UA }, (r) => {
+        /* 跟随一次跳转 */
+        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+          https.get(r.headers.location, { headers: UA }, (r2) => {
+            let raw = ''; r2.on('data', (c) => (raw += c));
+            r2.on('end', () => resolve(raw));
+          }).on('error', reject);
+          return;
+        }
+        let raw = ''; r.on('data', (c) => (raw += c));
+        r.on('end', () => resolve(raw));
+      }).on('error', reject);
+      req.setTimeout(8000, () => req.destroy(new Error('timeout')));
+    });
+    try {
+      const html = await fetchText(target);
+      const meta = (prop) => {
+        const re = new RegExp('<meta[^>]*(?:property|name)="' + prop + '"[^>]*content="([^"]*)"', 'i');
+        const m = html.match(re) || [];
+        return m[1] || '';
+      };
+      let title = meta('og:title') || (html.match(/<title>([^<]*)<\/title>/i) || [])[1] || '';
+      let cover = meta('og:image') || meta('twitter:image');
+      if (!cover) { const m = html.match(/"(https?:[^"]*(?:cover|snapshot|thumb)[^"]*)"/i); cover = m ? m[1] : ''; }
+      try { title = decodeURIComponent(title); } catch (e) { /* keep */ }
+      json(res, 200, { ok: true, title: title.replace(/&amp;/g, '&').trim(), cover: cover.trim() });
+    } catch (e) {
+      json(res, 200, { ok: false, msg: '抓取失败（该链接需在微信内打开或未暴露封面），请手动上传封面图' });
+    }
   }
 };
 
