@@ -70,6 +70,24 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   border: 1px solid #ecd9a8; border-radius: 20px; padding: 3px 10px;
 }
 
+/* ---------- 登录入口胶囊 ---------- */
+.hh-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.login-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600; color: var(--blue);
+  background: #eef4ff; border: 1px solid #c9dbff;
+  border-radius: 20px; padding: 5px 12px; min-height: 26px;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: background .15s, box-shadow .15s;
+}
+.login-chip::before { content: '👤'; font-size: 11px; }
+.login-chip:hover { background: #dfe9ff; box-shadow: 0 2px 8px rgba(59,110,230,.18); }
+.login-chip:active { background: #cfdcff; }
+@media (max-width: 380px) {
+  .login-chip { font-size: 11px; padding: 4px 9px; }
+  .hh-right .badge-dist { display: none; }
+}
+
 /* ---------- 轮播 ---------- */
 .carousel { position: relative; margin: 12px 14px 0; border-radius: 14px; overflow: hidden; }
 .carousel .track { display: flex; transition: transform .35s; }

@@ -69,6 +69,13 @@
     }).join('') + '</div>';
   }
 
+  /* 登录入口：顶部胶囊链接（未登录→登录/注册，已登录→切换账号） */
+  function loginChip() {
+    var on = window.Auth && Auth.isLoggedIn();
+    return '<a class="login-chip" href="#/login" aria-label="前往登录">' +
+      (on ? '切换账号' : '登录 / 注册') + '</a>';
+  }
+
   function coverStyle(key, title) {
     var grads = {
       codex: 'linear-gradient(135deg,#0b1530 0%,#14306e 55%,#0b1530 100%)',
@@ -92,7 +99,7 @@
     var html = '' +
       '<div class="home-head"><div class="lh-left"><div class="logo-sq gold">沙</div>' +
       '<div><div class="lh-title">沙龙活动</div><div class="lh-sub">打破AI信息差，让创业更简单</div></div></div>' +
-      (db.user.distributeEnabled ? '<span class="badge-dist">分销员</span>' : '') + '</div>' +
+      '<span class="hh-right">' + (db.user.distributeEnabled ? '<span class="badge-dist">分销员</span>' : '') + loginChip() + '</span></div>' +
 
       '<div class="carousel" id="carousel"><div class="track">' +
       banners.map(function (b, i) {
@@ -141,7 +148,7 @@
     var html = '' +
       '<div class="home-head"><div class="lh-left"><div class="logo-sq green">板</div>' +
       '<div><div class="lh-title">老板资源</div><div class="lh-sub">探访实拍老板 · 平台引荐对接</div></div></div>' +
-      (db.user.distributeEnabled ? '<span class="badge-dist">分销员</span>' : '') + '</div>' +
+      '<span class="hh-right">' + (db.user.distributeEnabled ? '<span class="badge-dist">分销员</span>' : '') + loginChip() + '</span></div>' +
 
       '<div class="search-wrap"><div class="search-box">🔍' +
       '<input id="bossKw" placeholder="搜索老板 / 行业 / 关键词..." value="' + kw + '">' +
@@ -256,6 +263,7 @@
       ['🧾', '我的支付记录', '', '#/payments'],
       ['💼', '商务合作', u.profile.hasResource ? '有资源' : '有资源 / 有预算 · 找拓圈谈', '#/coop'],
       ['💬', '联系客服', '', 'service'],
+      ['🔑', '登录 / 切换账号', '', '#/login'],
       ['⚙️', '设置', '', '#/settings']
     ];
     phone.innerHTML = pagebar('我的', '#/salon') +
