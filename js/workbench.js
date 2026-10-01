@@ -734,23 +734,73 @@
           return '<div class="wb-card"><div class="wc-top">' + esc(b.title || '（无标题 · 纯图展示）') + ' ' +
             (b.on ? '<span class="wb-tag" style="background:#e6f5ec;color:#1a7f4b">上架中</span>' : '<span class="wb-tag" style="background:#f1f2f4;color:#8a8f99">已下架</span>') + '</div>' +
             '<div class="wc-sub">' + esc(b.sub || '') + ' · 🔗 ' + linkLabel(b.linkType) + '</div>' +
-            '<div class="wb-btns"><button class="wb-btn ghost" onclick="Workbench.bnMove(\'' + b.id + '\',-1)">↑ 上移</button>' +
+            '<div class="wb-btns"><button class="wb-btn ghost" onclick="Workbench.bnForm(\'' + b.id + '\')">✏️ 编辑</button>' +
+            '<button class="wb-btn ghost" onclick="Workbench.bnMove(\'' + b.id + '\',-1)">↑ 上移</button>' +
             '<button class="wb-btn ghost" onclick="Workbench.bnMove(\'' + b.id + '\',1)">↓ 下移</button>' +
             '<button class="wb-btn ghost" onclick="Workbench.bnToggle(\'' + b.id + '\')">' + (b.on ? '⏸ 下架' : '▶️ 上架') + '</button>' +
             '<button class="wb-btn ghost danger" onclick="Workbench.bnDel(\'' + b.id + '\')">🗑 删除</button></div></div>';
         }).join('') : emptyBox('🖼', '还没有运营位<br>点右上角「＋ 新增」上传第一张广告图')) + '</div>';
       shell({
         title: '首页运营位', back: '#/boss-dash', body: bodyHtml,
-        right: '<span class="wb-right" onclick="Workbench.bnAdd()">＋ 新增</span>'
+        right: '<span class="wb-right" onclick="Workbench.bnForm()">＋ 新增</span>'
       });
     },
-    bnAdd: function () {
+    bnForm: function (id) {
+      if (!isBoss()) return deny();
       var db = S.get();
-      var title = window.prompt('主标题（选填 · 最多 20 字）', '') || '';
-      var sub = window.prompt('副标题（选填 · 最多 24 字）', '') || '';
-      var lt = window.prompt('点击跳转：vip / bosses / salon / url / none', 'vip') || 'none';
-      db.banners.push({ id: S.uid('bn'), img: 'img/logo.png', title: title, sub: sub, linkType: lt, linkValue: '', on: true, sort: db.banners.length + 1 });
-      S.save(); UI.toast('已新增运营位'); WB.banners();
+      var b = db.banners.filter(function (x) { return x.id === id; })[0] || { title: '', sub: '', linkType: 'vip', linkValue: '', on: true, img: '' };
+      window.__bnImg = b.img || '';
+      var LT = [['vip', '会员页'], ['bosses', '老板资源'], ['salon', '指定沙龙（填活动ID）'], ['url', '外部链接（填完整URL）'], ['none', '不跳转']];
+      var bodyHtml =
+        '<div class="d-block"><div class="wt">' + (id ? '编辑运营位' : '新增运营位') + '</div>' +
+        '<div class="wb-note">图片建议 1200×500 横图，前台按 2.4:1 自动裁切；标题副标题选填，纯图也可</div></div>' +
+        '<div class="d-block">' +
+        '<div class="wb-field"><div class="wb-lab">封面图</div>' +
+        '<div id="bnPrev" style="height:110px;border-radius:12px;background:#f2f3f5 center/cover no-repeat;' + (b.img ? 'background-image:url(' + b.img + ');' : '') + '"></div>' +
+        '<button class="wb-btn" style="margin-top:8px" onclick="Workbench.bnPick()">📷 上传 / 更换图片</button></div>' +
+        '<div class="wb-field"><div class="wb-lab">主标题（选填 · 最多 20 字）</div><input class="wb-inp" id="bnT" maxlength="20" value="' + esc(b.title) + '"></div>' +
+        '<div class="wb-field"><div class="wb-lab">副标题（选填 · 最多 24 字）</div><input class="wb-inp" id="bnS" maxlength="24" value="' + esc(b.sub) + '"></div>' +
+        '<div class="wb-field"><div class="wb-lab">点击跳转</div><select class="wb-inp" id="bnLT">' +
+        LT.map(function (x) { return '<option value="' + x[0] + '"' + (b.linkType === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="wb-field"><div class="wb-lab">跳转值（选沙龙填活动ID · 选链接填完整URL）</div><input class="wb-inp" id="bnLV" value="' + esc(b.linkValue || '') + '"></div>' +
+        '<div class="wb-field"><div class="wb-lab">状态</div><select class="wb-inp" id="bnOn">' +
+        '<option value="1"' + (b.on ? ' selected' : '') + '>上架</option>' +
+        '<option value="0"' + (!b.on ? ' selected' : '') + '>下架</option></select></div>' +
+        '<button class="wb-btn" style="width:100%;margin-top:10px" onclick="Workbench.bnSave(\'' + (id || '') + '\')">保存</button></div>';
+      shell({ title: id ? '编辑运营位' : '新增运营位', back: '#/boss-banners', body: bodyHtml });
+    },
+    bnPick: function () {
+      if (!window.ImgUp) { UI.toast('上传组件未加载'); return; }
+      ImgUp.pick({ ratio: 2.4, max: 900, quality: .82 }, function (urls) {
+        var u = urls && urls[0];
+        if (!u) return;
+        window.__bnImg = u;
+        var el = document.getElementById('bnPrev');
+        if (el) { el.style.backgroundImage = 'url(' + u + ')'; }
+        UI.toast('图片已就绪，点「保存」生效');
+      });
+    },
+    bnSave: function (id) {
+      if (!isBoss()) return deny();
+      var db = S.get();
+      var data = {
+        title: document.getElementById('bnT').value.trim(),
+        sub: document.getElementById('bnS').value.trim(),
+        linkType: document.getElementById('bnLT').value,
+        linkValue: document.getElementById('bnLV').value.trim(),
+        on: document.getElementById('bnOn').value === '1',
+        img: window.__bnImg || 'img/logo.png'
+      };
+      if (id) {
+        var b = db.banners.filter(function (x) { return x.id === id; })[0];
+        Object.assign(b, data);
+      } else {
+        data.id = S.uid('bn');
+        data.sort = db.banners.length + 1;
+        db.banners.push(data);
+      }
+      S.save(); UI.toast('已保存，前台立即生效'); WB.banners();
     },
     bnToggle: function (id) {
       var db = S.get();
@@ -1006,6 +1056,7 @@
         'boss-coop': function () { WB.coop(); },
         'boss-dist': function () { WB.dist(); },
         'boss-banners': function () { WB.banners(); },
+        'boss-banner-form': function () { WB.bnForm(); },
         'boss-posts': function () { WB.posts(); },
         'boss-staff': function () { WB.staff(); },
         'boss-tabs': function () { WB.tabs(); },

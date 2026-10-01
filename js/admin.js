@@ -19,16 +19,29 @@
   function closeModal() { document.getElementById('modalMask').style.display = 'none'; }
   document.getElementById('modalMask').onclick = function (e) { if (e.target === this) closeModal(); };
 
-  var TITLES = { dashboard: '数据看板', bosses: '老板资源管理', salons: '沙龙活动管理', orders: '订单管理', users: '用户管理', distribute: '分销与佣金', leads: '合作线索', notices: '公告管理', config: '系统配置' };
+  var TITLES = { dashboard: '数据看板', bosses: '老板资源管理', salons: '沙龙活动管理', orders: '订单管理', users: '用户管理', distribute: '分销与佣金', leads: '合作线索', banners: '首页运营位', notices: '公告管理', config: '系统配置' };
+  var LINK_TYPES = { vip: '会员页', bosses: '老板资源', salon: '指定沙龙', url: '外部链接', none: '不跳转' };
 
   function statusTag(st) {
     var map = {
       '待对接': 'orange', '已对接': 'blue', '已完成': 'green', '已退款': 'red',
       '待跟进': 'orange', '已合作': 'green',
-      '待结算': 'orange', '结算中': 'blue', '已结算': 'green',
+      '待结算': 'orange', '结算中': 'blue', '已结算': 'green', '已作废': 'red',
       '报名中': 'green', '筹备中': 'orange', '已结束': 'gray', '已报名': 'blue', '已核销': 'green'
     };
     return '<span class="tagx ' + (map[st] || 'gray') + '">' + st + '</span>';
+  }
+
+  /* ---------- 数据层适配层：signups → 订单视图 ---------- */
+  function kindLabel(x) { return ({ member: '会员', refer: '引荐', salon: '沙龙' })[x.kind] || x.kind || '—'; }
+  function sigStatus(o) {
+    return o.refunded ? '已退款' : (!o.paid ? '待支付' : (o.dock === 'done' ? '已完成' : (o.referred ? '已对接' : '待对接')));
+  }
+  function ordersView(db) {
+    return (db.signups || []).slice().sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); }).map(function (o) {
+      var cm = (db.commissions || []).filter(function (c) { return c.signupId === o.id; })[0];
+      return { id: o.id, type: kindLabel(o), product: o.title || o.bossName || '—', user: o.name || '—', distributor: o.distName || '', amount: o.amount || 0, commission: cm ? cm.amount : 0, status: sigStatus(o), time: o.createdAt || '', raw: o };
+    });
   }
 
   var Admin = window.Admin = {
@@ -67,6 +80,7 @@
       Admin.renderUsers();
       Admin.renderDistribute();
       Admin.renderLeads();
+      Admin.renderBanners();
       Admin.renderNotices();
       Admin.renderConfig();
     },
@@ -74,9 +88,10 @@
     /* ---------- 看板 ---------- */
     renderDash: function () {
       var db = S.get();
-      var memberCnt = db.orders.filter(function (o) { return o.type === '会员' && o.status !== '已退款'; }).length;
-      var refCnt = db.orders.filter(function (o) { return o.type === '引荐'; }).length;
-      var gmv = db.orders.filter(function (o) { return o.status !== '已退款'; }).reduce(function (a, b) { return a + b.amount; }, 0);
+      var view = ordersView(db);
+      var memberCnt = db.signups.filter(function (o) { return o.kind === 'member' && o.paid && !o.refunded; }).length;
+      var refCnt = db.signups.filter(function (o) { return o.kind === 'refer'; }).length;
+      var gmv = view.filter(function (o) { return o.status !== '已退款' && o.status !== '待支付'; }).reduce(function (a, b) { return a + b.amount; }, 0);
       var pendingCm = db.commissions.filter(function (c) { return c.status === '待结算'; }).reduce(function (a, b) { return a + b.amount; }, 0);
       var stats = [
         ['累计 GMV（元）', gmv, '+12.5%', 'up'],
@@ -84,15 +99,15 @@
         ['年度会员', memberCnt + ' 人', '+1', 'up'],
         ['引荐单', refCnt + ' 单', '+2', 'up'],
         ['待结算佣金（元）', pendingCm, '—', ''],
-        ['合作线索', db.leads.length + ' 条', '+1', 'up']
+        ['合作线索', db.coopLeads.length + ' 条', '+1', 'up']
       ];
       document.getElementById('statGrid').innerHTML = stats.map(function (s) {
         return '<div class="stat-card"><div class="k">' + s[0] + '</div><div class="v">' + s[1] + '</div><div class="d ' + s[3] + '">' + s[2] + '</div></div>';
       }).join('');
 
       Admin.drawChart();
-      var rows = db.orders.slice(0, 5).map(function (o) {
-        return '<tr><td>' + o.id + '</td><td>' + statusTag(o.type) + '</td><td>' + esc(o.product || o.boss || '—') + '</td><td>' + esc(o.user) + '</td><td>¥' + o.amount + '</td><td>' + statusTag(o.status) + '</td><td>' + o.time + '</td></tr>';
+      var rows = view.slice(0, 5).map(function (o) {
+        return '<tr><td>' + o.id + '</td><td><span class="tagx blue">' + o.type + '</span></td><td>' + esc(o.product) + '</td><td>' + esc(o.user) + '</td><td>¥' + o.amount + '</td><td>' + statusTag(o.status) + '</td><td>' + o.time + '</td></tr>';
       }).join('');
       document.getElementById('recentOrders').innerHTML = '<tr><th>订单号</th><th>类型</th><th>内容</th><th>用户</th><th>金额</th><th>状态</th><th>时间</th></tr>' + rows;
     },
@@ -108,9 +123,9 @@
       for (var i = 6; i >= 0; i--) {
         var d = new Date(Date.now() - i * 86400000).toISOString().slice(5, 10);
         days.push(d);
-        var amt = db.orders.filter(function (o) { return o.time.indexOf(d) >= 0 && o.status !== '已退款'; }).reduce(function (a, b) { return a + b.amount; }, 0);
+        var amt = db.signups.filter(function (o) { return (o.createdAt || '').indexOf(d) >= 0 && !o.refunded && o.paid; }).reduce(function (a, b) { return a + (b.amount || 0); }, 0);
         amounts.push(amt);
-        refs.push(db.orders.filter(function (o) { return o.time.indexOf(d) >= 0 && o.type === '引荐'; }).length);
+        refs.push(db.signups.filter(function (o) { return (o.createdAt || '').indexOf(d) >= 0 && o.kind === 'refer'; }).length);
         locks.push(db.clients.filter(function (c) { return c.firstLock.indexOf('20' + d.replace('/', '-')) === 0 || c.firstLock.slice(5) === d; }).length);
       }
       var maxV = Math.max.apply(null, amounts.concat([100]));
@@ -392,7 +407,7 @@
       var db = S.get();
       var t = document.getElementById('orderType').value;
       var st = document.getElementById('orderStatus').value;
-      var list = db.orders.filter(function (o) { return (!t || o.type === t) && (!st || o.status === st); });
+      var list = ordersView(db).filter(function (o) { return (!t || o.type === t) && (!st || o.status === st); });
       document.getElementById('orderTable').innerHTML =
         '<tr><th>订单号</th><th>类型</th><th>内容</th><th>用户</th><th>分销员</th><th>金额</th><th>佣金</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
         list.map(function (o) {
@@ -407,29 +422,39 @@
     setOrder: function (id, status) {
       if (status === '已退款' && !confirm('确认退款？佣金将同步作废。')) return;
       var db = S.get();
-      var o = db.orders.find(function (x) { return x.id === id; });
-      o.status = status;
-      db.commissions.forEach(function (c) { if (c.order === id) c.status = status === '已退款' ? '已结算' : (status === '已完成' ? '待结算' : c.status); });
-      S.save(); Admin.renderOrders(); Admin.renderDash(); toast('订单已更新为：' + status);
+      var o = db.signups.find(function (x) { return x.id === id; });
+      if (!o) return;
+      if (status === '已退款') o.refunded = true;
+      else if (status === '已对接') { o.referred = true; if (o.dock === 'pending') o.dock = 'referred'; }
+      else if (status === '已完成') o.dock = 'done';
+      db.commissions.forEach(function (c) {
+        if (c.signupId !== id) return;
+        if (status === '已退款') c.status = '已作废';
+        else if (status === '已完成' && c.status !== '已结算') c.status = '待结算';
+      });
+      S.save(); Admin.renderOrders(); Admin.renderDash(); Admin.renderDistribute(); toast('订单已更新为：' + status);
     },
 
     /* ---------- 用户 ---------- */
     renderUsers: function () {
       var db = S.get();
-      var rows = [db.user].concat(db.clients.map(function (c) {
-        return { nickname: c.nickname, role: '客户', maskedPhone: '—', memberUntil: '', openid: c.openid, locked: c.locked, firstLock: c.firstLock, id: c.id };
+      var me = db.user;
+      var meRole = me.role === 'boss' ? '主理人' : me.role === 'distributor' ? '分销员' : '客户';
+      var rows = [{ nickname: me.nickname, role: meRole, maskedPhone: me.phone ? S.maskPhone(me.phone) : '—', memberUntil: me.memberExpire || '', openid: me.openid || '', firstLock: '', id: me.id, isMe: true }].concat(db.clients.map(function (c) {
+        return { nickname: c.nickname, role: '客户', maskedPhone: '—', memberUntil: '', openid: c.openid, firstLock: c.firstLock, id: c.id };
       })).map(function (u) {
+        var tag = (u.role === '主理人' || u.role === '分销员') ? '<span class="tagx gold">' + u.role + '</span>' : u.role === '会员' ? '<span class="tagx blue">会员</span>' : '<span class="tagx gray">客户</span>';
         return '<tr><td><b>' + esc(u.nickname) + '</b><br><span style="font-size:11px;color:#86909c">' + (u.openid || '本人账号') + '</span></td>' +
-          '<td>' + (u.role === '分销员' ? '<span class="tagx gold">分销员</span>' : u.role === '会员' ? '<span class="tagx blue">会员</span>' : '<span class="tagx gray">客户</span>') + '</td>' +
+          '<td>' + tag + '</td>' +
           '<td>' + u.maskedPhone + '</td>' +
           '<td>' + (u.memberUntil ? '至 ' + u.memberUntil : '—') + '</td>' +
           '<td>' + (u.firstLock || '—') + '</td>' +
-          '<td>' + (u.role !== '分销员' ? '<button class="btn sm primary" onclick="Admin.makeDist(\'' + u.id + '\')">开通分销员</button>' : '<span class="tagx green">已开通</span>') + '</td></tr>';
+          '<td>' + (u.isMe ? '<span class="tagx green">已开通</span>' : '<button class="btn sm primary" onclick="Admin.makeDist(\'' + u.id + '\')">开通分销员</button>') + '</td></tr>';
       }).join('');
       document.getElementById('userTable').innerHTML = '<tr><th>用户</th><th>角色</th><th>手机号</th><th>会员有效期</th><th>首次锁粉</th><th>操作</th></tr>' + rows;
     },
     makeDist: function (id) {
-      if (id === 'u_1001') { toast('本人已是分销员'); return; }
+      if (id === 'u_1001') { toast('本人是主理人，无需开通'); return; }
       var db = S.get();
       var c = db.clients.find(function (x) { return x.id === id; });
       if (c) { c.locked = false; toast(c.nickname + ' 已开通分销员（演示）'); }
@@ -442,14 +467,14 @@
       var sum = function (st) { return db.commissions.filter(function (c) { return c.status === st; }).reduce(function (a, b) { return a + b.amount; }, 0); };
       document.getElementById('distStats').innerHTML =
         [['待结算佣金（元）', sum('待结算')], ['结算中佣金（元）', sum('结算中')], ['已结算佣金（元）', sum('已结算')],
-         ['锁粉客户', db.clients.length + ' 人'], ['锁定中', db.clients.filter(function (c) { return c.locked; }).length + ' 人'], ['分销员', '1 人']].map(function (s) {
+         ['锁粉客户', db.clients.length + ' 人'], ['锁定中', db.clients.filter(function (c) { return c.locked; }).length + ' 人'], ['分销员', db.distTeam.length + ' 人']].map(function (s) {
           return '<div class="stat-card"><div class="k">' + s[0] + '</div><div class="v">' + s[1] + '</div></div>';
         }).join('');
       document.getElementById('commissionTable').innerHTML =
-        '<tr><th>单号</th><th>类型</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
+        '<tr><th>单号</th><th>类型</th><th>客户</th><th>归属</th><th>金额</th><th>比例</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
         db.commissions.map(function (c) {
-          return '<tr><td>' + c.order + '</td><td>' + c.type + '</td><td>¥' + c.amount + '</td><td>' + statusTag(c.status) + '</td><td>' + c.time + '</td>' +
-            '<td>' + (c.status !== '已结算' ? '<button class="btn sm primary" onclick="Admin.settle(\'' + c.id + '\')">结算</button>' : '') + '</td></tr>';
+          return '<tr><td>' + (c.signupId || c.id) + '</td><td>' + kindLabel(c) + '</td><td>' + esc(c.name || '—') + '</td><td>' + esc(c.distName || '—') + '</td><td>¥' + c.amount + '</td><td>' + (c.rate || '—') + '%</td><td>' + statusTag(c.status) + '</td><td>' + (c.time || '') + '</td>' +
+            '<td>' + (c.status !== '已结算' && c.status !== '已作废' ? '<button class="btn sm primary" onclick="Admin.settle(\'' + c.id + '\')">结算</button>' : '') + '</td></tr>';
         }).join('');
       document.getElementById('clientTable').innerHTML =
         '<tr><th>客户</th><th>锁粉状态</th><th>首次锁定</th><th>到期</th><th>归属</th><th>累计佣金</th></tr>' +
@@ -469,19 +494,116 @@
       var db = S.get();
       document.getElementById('leadTable').innerHTML =
         '<tr><th>客户</th><th>业务</th><th>想怎么合作</th><th>预算档</th><th>来源</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
-        db.leads.map(function (l) {
-          return '<tr><td><b>' + esc(l.name) + '</b><br><span style="font-size:11px;color:#86909c">' + esc(l.contact) + '</span></td>' +
+        db.coopLeads.map(function (l) {
+          return '<tr><td><b>' + esc(l.name) + '</b><br><span style="font-size:11px;color:#86909c">' + esc(l.phone || '') + (l.wechat ? ' · ' + esc(l.wechat) : '') + '</span></td>' +
             '<td style="max-width:220px;font-size:12px">' + esc(l.biz) + (l.result ? '<br>结果：' + esc(l.result) : '') + '</td>' +
-            '<td>' + l.coopTypes.map(function (t) { return '<span class="tagx blue">' + esc(t) + '</span>'; }).join(' ') +
-            (l.coopDetail ? '<div style="font-size:11px;color:#86909c;margin-top:4px">' + esc(l.coopDetail) + '</div>' : '') + '</td>' +
-            '<td>' + esc(l.budget) + '</td><td>' + esc(l.from) + '</td><td>' + statusTag(l.status) + '</td><td>' + l.time + '</td>' +
-            '<td>' + (l.status === '待跟进' ? '<button class="btn sm primary" onclick="Admin.setLead(\'' + l.id + '\')">标记已合作</button>' : '') + '</td></tr>';
+            '<td>' + (l.types || []).map(function (t) { return '<span class="tagx blue">' + esc(t) + '</span>'; }).join(' ') +
+            (l.want ? '<div style="font-size:11px;color:#86909c;margin-top:4px">' + esc(l.want) + '</div>' : '') + '</td>' +
+            '<td>' + esc(l.budget || '—') + '</td><td>' + esc(l.distName ? '分销员 ' + l.distName : '自然流量') + '</td>' +
+            '<td>' + (l.status === '已合作' ? statusTag('已合作') : '<span class="tagx orange">待跟进</span>') + '</td><td>' + (l.time || '') + '</td>' +
+            '<td>' + (l.status !== '已合作' ? '<button class="btn sm primary" onclick="Admin.setLead(\'' + l.id + '\')">标记已合作</button>' : '') + '</td></tr>';
         }).join('');
     },
     setLead: function (id) {
       var db = S.get();
-      db.leads.find(function (l) { return l.id === id; }).status = '已合作';
+      db.coopLeads.find(function (l) { return l.id === id; }).status = '已合作';
       S.save(); Admin.renderLeads(); toast('已标记为已合作');
+    },
+
+    /* ---------- 首页运营位 ---------- */
+    renderBanners: function () {
+      var db = S.get();
+      var list = (db.banners || []).slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+      document.getElementById('bannerTable').innerHTML =
+        '<tr><th>排序</th><th>预览</th><th>标题 / 副标题</th><th>点击跳转</th><th>状态</th><th>操作</th></tr>' +
+        (list.length ? list.map(function (b, i) {
+          return '<tr>' +
+            '<td style="white-space:nowrap">' + (i > 0 ? '<button class="btn sm" onclick="Admin.moveBanner(\'' + b.id + '\',-1)">↑</button> ' : '') +
+            (i < list.length - 1 ? '<button class="btn sm" onclick="Admin.moveBanner(\'' + b.id + '\',1)">↓</button>' : '') + '</td>' +
+            '<td><div style="width:120px;height:50px;border-radius:8px;background:#f2f3f5 center/cover no-repeat;' + (b.img ? 'background-image:url(' + esc(b.img) + ');' : '') + '"></div></td>' +
+            '<td><b>' + esc(b.title || '（纯图展示）') + '</b><br><span style="font-size:12px;color:#86909c">' + esc(b.sub || '') + '</span></td>' +
+            '<td>' + (LINK_TYPES[b.linkType] || b.linkType || '不跳转') + (b.linkValue ? '<br><span style="font-size:11px;color:#86909c">' + esc(b.linkValue) + '</span>' : '') + '</td>' +
+            '<td>' + (b.on ? '<span class="tagx green">上架中</span>' : '<span class="tagx gray">已下架</span>') + '</td>' +
+            '<td style="white-space:nowrap"><button class="btn sm" onclick="Admin.editBanner(\'' + b.id + '\')">编辑</button> ' +
+            '<button class="btn sm" onclick="Admin.toggleBanner(\'' + b.id + '\')">' + (b.on ? '下架' : '上架') + '</button> ' +
+            '<button class="btn sm danger" onclick="Admin.delBanner(\'' + b.id + '\')">删除</button></td></tr>';
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:#86909c;padding:24px">暂无运营位 · 点右上角「+ 新增运营位」创建</td></tr>');
+    },
+    editBanner: function (id) {
+      var db = S.get();
+      var b = db.banners.find(function (x) { return x.id === id; }) || { title: '', sub: '', linkType: 'vip', linkValue: '', on: true, img: '' };
+      modal('<h3>' + (id ? '编辑运营位' : '新增运营位') + '</h3>' +
+        '<div class="f"><label>封面图（建议 1200×500 横图，选填）</label>' +
+        '<div style="display:flex;gap:12px;align-items:center">' +
+        '<div id="bnPrev" style="width:180px;height:75px;border-radius:8px;background:#f2f3f5 center/cover no-repeat;' + (b.img ? 'background-image:url(' + esc(b.img) + ');' : '') + '"></div>' +
+        '<button class="btn sm" onclick="document.getElementById(\'bnFile\').click()">📷 上传图片</button>' +
+        '<input type="file" id="bnFile" accept="image/*" style="display:none" onchange="Admin.pickBannerImg(this)"></div></div>' +
+        '<div class="f"><label>主标题（选填 · 最多 20 字）</label><input id="mBnTitle" maxlength="20" value="' + esc(b.title) + '"></div>' +
+        '<div class="f"><label>副标题（选填 · 最多 24 字）</label><input id="mBnSub" maxlength="24" value="' + esc(b.sub) + '"></div>' +
+        '<div class="mrow">' +
+        '<div class="f"><label>点击跳转</label><select id="mBnType">' + Object.keys(LINK_TYPES).map(function (k) {
+          return '<option value="' + k + '"' + (b.linkType === k ? ' selected' : '') + '>' + LINK_TYPES[k] + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="f"><label>跳转值（选「指定沙龙」填活动ID，选「外部链接」填完整URL）</label><input id="mBnValue" value="' + esc(b.linkValue || '') + '"></div></div>' +
+        '<div class="f"><label>状态</label><select id="mBnOn">' +
+        '<option value="1"' + (b.on ? ' selected' : '') + '>上架（用户端立即可见）</option>' +
+        '<option value="0"' + (!b.on ? ' selected' : '') + '>下架</option></select></div>' +
+        '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveBanner(\'' + (id || '') + '\')">保存</button></div>');
+    },
+    pickBannerImg: function (inp) {
+      var file = inp.files && inp.files[0];
+      if (!file) return;
+      ImgUp.pick({ ratio: 2.4, max: 900, quality: .82 }, function (urls) {
+        var u = urls && urls[0];
+        if (!u) return;
+        var el = document.getElementById('bnPrev');
+        if (el) { el.style.backgroundImage = 'url(' + u + ')'; el.dataset.img = u; }
+        toast('图片已就绪，点「保存」生效');
+      });
+    },
+    saveBanner: function (id) {
+      var db = S.get();
+      var data = {
+        title: document.getElementById('mBnTitle').value.trim(),
+        sub: document.getElementById('mBnSub').value.trim(),
+        linkType: document.getElementById('mBnType').value,
+        linkValue: document.getElementById('mBnValue').value.trim(),
+        on: document.getElementById('mBnOn').value === '1'
+      };
+      var prev = document.getElementById('bnPrev');
+      var newImg = prev && prev.dataset ? prev.dataset.img : '';
+      if (id) {
+        var b = db.banners.find(function (x) { return x.id === id; });
+        data.img = newImg || b.img;
+        Object.assign(b, data);
+      } else {
+        data.id = S.uid('bn');
+        data.sort = db.banners.length + 1;
+        data.img = newImg || 'img/logo.png';
+        db.banners.push(data);
+      }
+      S.save(); closeModal(); Admin.renderBanners(); toast('已保存，用户端沙龙页实时生效');
+    },
+    toggleBanner: function (id) {
+      var db = S.get();
+      var b = db.banners.find(function (x) { return x.id === id; });
+      b.on = !b.on; S.save(); Admin.renderBanners(); toast(b.on ? '已上架' : '已下架');
+    },
+    moveBanner: function (id, dir) {
+      var db = S.get();
+      var list = db.banners.slice().sort(function (a, b) { return (a.sort || 0) - (b.sort || 0); });
+      var i = list.findIndex(function (x) { return x.id === id; });
+      var j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return;
+      var t = list[i]; list[i] = list[j]; list[j] = t;
+      list.forEach(function (x, k) { x.sort = k + 1; });
+      S.save(); Admin.renderBanners();
+    },
+    delBanner: function (id) {
+      if (!confirm('确定删除该运营位？')) return;
+      var db = S.get();
+      db.banners = db.banners.filter(function (x) { return x.id !== id; });
+      S.save(); Admin.renderBanners(); toast('已删除');
     },
 
     /* ---------- 公告 ---------- */
