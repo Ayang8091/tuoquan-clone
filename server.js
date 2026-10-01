@@ -20,6 +20,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -84,8 +85,8 @@ const apiHandlers = {
   'video/resolve': async (body, res) => {
     const target = String(body.url || '').trim();
     if (!/^https?:\/\//i.test(target)) return json(res, 200, { ok: false, msg: '链接格式不正确' });
-    const UA = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49', 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8' };
-    /* 支持多级跳转（视频号分享链常需 2~3 次 302），http/https 通吃 */
+    const UA = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49', 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate, br' };
+    /* 支持多级跳转（视频号分享链常需 2~3 次 302），http/https 通吃；自动解压 + 编码识别 */
     const fetchText = (u, depth) => new Promise((resolve, reject) => {
       if (depth > 3) return reject(new Error('redirect loop'));
       const mod = u.startsWith('http://') ? http : https;
@@ -95,9 +96,24 @@ const apiHandlers = {
           const next = new url.URL(r.headers.location, u).toString();
           return resolve(fetchText(next, depth + 1));
         }
-        let raw = ''; r.setEncoding('utf8');
-        r.on('data', (c) => (raw += c));
-        r.on('end', () => resolve(raw));
+        const chunks = [];
+        r.on('data', (c) => chunks.push(c));
+        r.on('end', () => {
+          let buf = Buffer.concat(chunks);
+          const enc = String(r.headers['content-encoding'] || '').toLowerCase();
+          try {
+            if (enc.includes('br')) buf = zlib.brotliDecompressSync(buf);
+            else if (enc.includes('gzip')) buf = zlib.gunzipSync(buf);
+            else if (enc.includes('deflate')) buf = zlib.inflateSync(buf);
+          } catch (e) { /* 未压缩或已解压，保持原样 */ }
+          let text = buf.toString('utf8');
+          /* GBK 等非 UTF-8 站点：按 meta charset 重新解码 */
+          const cm = text.slice(0, 2000).match(/charset=["']?([\w-]+)/i);
+          if (cm && !/utf-?8/i.test(cm[1])) {
+            try { text = new TextDecoder(cm[1]).decode(buf); } catch (e) { /* keep utf8 */ }
+          }
+          resolve(text);
+        });
       }).on('error', reject);
       req.setTimeout(8000, () => req.destroy(new Error('timeout')));
     });
