@@ -17,7 +17,7 @@
   var CONTENT_SCOPES = [
     'config', 'bosses', 'salons', 'notices', 'posts',
     'banners', 'vipPage', 'signups', 'commissions', 'referrals',
-    'coopLeads', 'distTeam', 'members', 'upsells'
+    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList'
   ];
 
   function uid(prefix) {
@@ -371,6 +371,33 @@
       if (!global.CloudSync) return Promise.resolve();
       return global.CloudSync.init(db, seedContent(), onChanged, onError);
     },
+    /* 角色回填：审批通过后，申请人设备按云端 distTeam 反查自己手机号，自动升级为分销员。
+       返回 true 表示本地用户数据有变更（调用方应刷新界面） */
+    reconcileDistRole: function () {
+      var u = db.user;
+      if (!u || u.role === 'boss' || u.superadmin) return false;
+      var key = function (p) { return String(p == null ? '' : p).trim(); };
+      var mine = db.distTeam.filter(function (m) {
+        /* 只按绑定手机号匹配；inviteCode 默认继承主理人演示值，不能作为身份键 */
+        return key(m.phone) && key(u.phone) && key(m.phone) === key(u.phone);
+      })[0];
+      var changed = false;
+      if (mine) {
+        if (u.role !== 'distributor') { u.role = 'distributor'; changed = true; }
+        if (u.distApply) { u.distApply = ''; changed = true; }
+        /* 锁粉链接归属自己：inviteCode 还不是本人手机号时纠正 */
+        if (/^1\d{10}$/.test(key(u.phone)) && key(u.inviteCode) !== key(u.phone)) { u.inviteCode = key(u.phone); changed = true; }
+      } else if (u.distApply === 'pending') {
+        /* 云端申请列表里已没有自己的申请（且不在分销团队）→ 已被驳回，恢复可再申请 */
+        var stillThere = (db.distApplyList || []).some(function (a) {
+          return key(a.phone) && key(u.phone) && key(a.phone) === key(u.phone);
+        });
+        if (!stillThere) { u.distApply = ''; changed = true; }
+      }
+      if (changed) save(db);
+      return changed;
+    },
+
     reset: function () { db = seed(); save(db); scheduleCloudPush(); },
     uid: uid,
     /* 工具 */

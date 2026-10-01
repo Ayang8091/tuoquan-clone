@@ -11,7 +11,7 @@
   var SCOPES = [
     'config', 'bosses', 'salons', 'notices', 'posts',
     'banners', 'vipPage', 'signups', 'commissions', 'referrals',
-    'coopLeads', 'distTeam', 'members', 'upsells'
+    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList'
   ];
 
   var _cloud = null;

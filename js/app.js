@@ -1165,7 +1165,7 @@
 
   /* 云端数据初始化：拉取最新内容（后台在其他设备改的数据），有变化则刷新当前页 */
   if (S.initSync) {
-    S.initSync(function () { render(true); }, function () { /* 云端暂不可达：静默沿用本地缓存 */ });
+    S.initSync(function () { if (S.reconcileDistRole) S.reconcileDistRole(); render(true); }, function () { /* 云端暂不可达：静默沿用本地缓存 */ });
   }
 
   /* 启动：处理微信授权回调 → 同步登录态 → 微信内自动授权登录 → 首次渲染 */

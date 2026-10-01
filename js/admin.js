@@ -465,6 +465,14 @@
     renderDistribute: function () {
       var db = S.get();
       var sum = function (st) { return db.commissions.filter(function (c) { return c.status === st; }).reduce(function (a, b) { return a + b.amount; }, 0); };
+      document.getElementById('applyTable').innerHTML =
+        '<tr><th>申请人</th><th>手机号</th><th>申请理由 / 资源说明</th><th>日期</th><th>操作</th></tr>' +
+        ((db.distApplyList || []).length ? db.distApplyList.map(function (a) {
+          return '<tr><td><b>' + esc(a.name) + '</b></td><td>' + esc(a.phone) + '</td>' +
+            '<td style="max-width:280px;font-size:12px;color:#4e5969">' + esc(a.reason || '—') + '</td><td>' + esc(a.at || '') + '</td>' +
+            '<td><button class="btn sm primary" onclick="Admin.approveDistApply(\'' + a.id + '\',1)">✓ 通过</button> ' +
+            '<button class="btn sm danger" onclick="Admin.approveDistApply(\'' + a.id + '\',0)">✕ 驳回</button></td></tr>';
+        }).join('') : '<tr><td colspan="5" style="text-align:center;color:#86909c;padding:18px">暂无待审申请</td></tr>');
       document.getElementById('distStats').innerHTML =
         [['待结算佣金（元）', sum('待结算')], ['结算中佣金（元）', sum('结算中')], ['已结算佣金（元）', sum('已结算')],
          ['锁粉客户', db.clients.length + ' 人'], ['锁定中', db.clients.filter(function (c) { return c.locked; }).length + ' 人'], ['分销员', db.distTeam.length + ' 人']].map(function (s) {
@@ -487,6 +495,26 @@
       var db = S.get();
       db.commissions.find(function (c) { return c.id === id; }).status = '已结算';
       S.save(); Admin.renderDistribute(); toast('佣金已结算');
+    },
+
+    /* ---------- 分销申请审核 ---------- */
+    approveDistApply: function (id, pass) {
+      var db = S.get();
+      var a = db.distApplyList.find(function (x) { return x.id === id; });
+      if (!a) return;
+      if (pass) {
+        if (db.distTeam.some(function (m) { return m.phone === a.phone; })) { toast('该手机号已是分销员'); }
+        else {
+          db.distTeam.push({
+            phone: a.phone, name: a.name, nickname: a.name, role: 'distributor',
+            rates: { member: db.config.memberCommissionRate, salon: db.config.salonCommissionRate },
+            custCount: 0, lockedCount: 0, dealCount: 0, totalPaid: 0, pendingTotal: 0, settlingTotal: 0,
+            settledTotal: 0, wxQrStatus: '', lockDays: db.config.lockDays, reLockable: false, rawView: false
+          });
+        }
+      }
+      db.distApplyList = db.distApplyList.filter(function (x) { return x.id !== id; });
+      S.save(); Admin.renderDistribute(); toast(pass ? '已通过，对方重新进入分销中心即生效' : '已驳回');
     },
 
     /* ---------- 线索 ---------- */

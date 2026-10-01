@@ -361,6 +361,8 @@
     route: function (h) {
       var seg = h.split('/');
       var name = seg[0], param = seg[1];
+      /* 进入分销中心前先做角色回填（审批通过后自动升级；此处在 render 分发内，map 派发时已是最新角色） */
+      if (name === 'distro' || name === 'distro-apply') { if (S.reconcileDistRole) S.reconcileDistRole(); }
       var map = {
         'distro': function () { D.home(); },
         'distro-apply': function () { D.apply(); },

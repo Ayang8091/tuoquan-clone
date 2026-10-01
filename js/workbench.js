@@ -698,6 +698,7 @@
       var db = S.get();
       var a = db.distApplyList.filter(function (x) { return x.id === id; })[0];
       if (!a) return;
+      var isMe = a.phone && a.phone === db.user.phone && db.user.role !== 'boss' && !db.user.superadmin;
       if (pass) {
         db.distTeam.push({
           phone: a.phone, name: a.name, nickname: a.name, role: 'distributor',
@@ -705,9 +706,16 @@
           custCount: 0, lockedCount: 0, dealCount: 0, totalPaid: 0, pendingTotal: 0, settlingTotal: 0,
           settledTotal: 0, wxQrStatus: '', lockDays: db.config.lockDays, reLockable: false, rawView: false
         });
+        /* 同设备（演示/本人操作）：申请人就是当前登录用户时直接生效 */
+        if (isMe) {
+          db.user.role = 'distributor'; db.user.distApply = '';
+          if (/^1\d{10}$/.test(String(db.user.phone || '')) && db.user.inviteCode !== db.user.phone) db.user.inviteCode = db.user.phone;
+        }
+      } else if (isMe) {
+        db.user.distApply = '';
       }
       db.distApplyList = db.distApplyList.filter(function (x) { return x.id !== id; });
-      S.save(); UI.toast(pass ? '已通过，对方重新登录生效' : '已驳回'); WB.dist('apply');
+      S.save(); UI.toast(pass ? '已通过' + (isMe ? '，你已是分销员' : '，对方重新进入即生效') : '已驳回'); WB.dist('apply');
     },
     distSettings: function () {
       var db = S.get(), c = db.config;
