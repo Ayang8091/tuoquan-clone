@@ -8,7 +8,11 @@
 (function (global) {
   'use strict';
 
-  var SCOPES = ['config', 'bosses', 'salons', 'notices', 'posts'];
+  var SCOPES = [
+    'config', 'bosses', 'salons', 'notices', 'posts',
+    'banners', 'vipPage', 'signups', 'commissions', 'referrals',
+    'coopLeads', 'distTeam', 'members', 'upsells'
+  ];
 
   var _cloud = null;
   function client() {
