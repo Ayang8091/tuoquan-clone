@@ -9,7 +9,7 @@
   'use strict';
 
   var DB_KEY = 'TQ_DB_V1';
-  var CONTENT_SCOPES = ['config', 'bosses', 'salons', 'notices'];
+  var CONTENT_SCOPES = ['config', 'bosses', 'salons', 'notices', 'posts'];
 
   function uid(prefix) {
     return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -113,17 +113,47 @@
         }
       ],
 
+      /* ---------- 圈子动态（会员发布） ---------- */
+      posts: [
+        {
+          id: 'cp_001', cat: 'res', pinned: true, mine: false, createdAt: d(-2) + ' 10:20',
+          content: '工厂直连：3C 配件（充电头/数据线/支架）现货供应，支持一件代发与小批量定制，已服务 200+ 亚马逊/独立站卖家。有需要供应链的圈友可以找我聊，样品免费寄。',
+          images: [], videoUrl: 'https://channels.weixin.qq.com/web/pages/factory-tour',
+          author: { nickname: '李厂长', avatarUrl: '', company: '深圳鹏芯电子有限公司', industry: '3C配件工厂' }
+        },
+        {
+          id: 'cp_002', cat: 'need', pinned: false, mine: false, createdAt: d(-5) + ' 15:40',
+          content: '找 TikTok 美区带货达人合作：家居收纳类目，客单价 29-59 美金，我们有现货和海外仓，可给到 35% 佣金 + 免费样品。',
+          images: [], videoUrl: '',
+          author: { nickname: 'Cathy', avatarUrl: '', company: '杭州瞬达跨境', industry: '跨境电商' }
+        },
+        {
+          id: 'cp_003', cat: 'coop', pinned: false, mine: false, createdAt: d(-9) + ' 09:05',
+          content: '招募 AI 应用合伙人：我们做企业知识库 + 智能客服落地，已有 30 家企业客户，需要有销售资源或行业渠道的伙伴一起做大。',
+          images: [], videoUrl: '',
+          author: { nickname: '老王', avatarUrl: '', company: '云智科技', industry: 'AI应用' }
+        },
+        {
+          id: 'cp_004', cat: 'idea', pinned: false, mine: false, createdAt: d(-14) + ' 20:12',
+          content: '这周跑了几家出海工厂，最大的感受是：老板们不缺产能，缺的是"把产能讲给海外客户听"的内容能力。AI 短视频矩阵恰好补这一环。',
+          images: [], videoUrl: '',
+          author: { nickname: '香樟君', avatarUrl: '', company: '乐道科技', industry: 'AI自媒体' }
+        }
+      ],
+
       /* ---------- 沙龙活动 ---------- */
       salons: [
         {
           id: 's_001', title: 'AI出海·跨境资源对接沙龙（第101期）', date: d(7), city: '深圳',
           place: '龙华区·乐道沙龙基地', seats: 60, joined: 0,
-          status: '筹备中', desc: '主理人正在筹备下一场沙龙，敬请期待', banner: 'boss', photos: []
+          status: '筹备中', desc: '主理人正在筹备下一场沙龙，敬请期待', banner: 'boss', photos: [],
+          videoUrl: '', sharePoints: [], audience: '', notice: ''
         },
         {
           id: 's_002', title: 'AI自动化实战沙龙（第100期）', date: d(-14), city: '深圳',
           place: '南山区·科技园', seats: 60, joined: 60,
-          status: '已结束', desc: 'Codex 商业化 AI 实战公开课', banner: 'codex', photos: []
+          status: '已结束', desc: 'Codex 商业化 AI 实战公开课', banner: 'codex', photos: [],
+          videoUrl: '', sharePoints: [], audience: '', notice: ''
         }
       ],
 
@@ -212,7 +242,7 @@
   /* 判断当前本地内容域是否仍是初始种子数据（云端为空时决定是否首推上云） */
   function seedContent() {
     var s = seed();
-    return { config: s.config, bosses: s.bosses, salons: s.salons, notices: s.notices };
+    return { config: s.config, bosses: s.bosses, salons: s.salons, notices: s.notices, posts: s.posts };
   }
 
   global.Store = {

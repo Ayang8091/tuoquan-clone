@@ -8,7 +8,7 @@
 (function (global) {
   'use strict';
 
-  var SCOPES = ['config', 'bosses', 'salons', 'notices'];
+  var SCOPES = ['config', 'bosses', 'salons', 'notices', 'posts'];
 
   var _cloud = null;
   function client() {

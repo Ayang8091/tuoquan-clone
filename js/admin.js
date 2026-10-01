@@ -338,6 +338,10 @@
         '<div class="f"><label>名额</label><input id="mSeats" type="number" value="' + s.seats + '"></div>' +
         '<div class="f"><label>状态</label><select id="mStatus">' + ['筹备中', '报名中', '已结束'].map(function (x) { return '<option ' + (s.status === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>' +
         '<div class="f"><label>描述</label><textarea id="mDesc">' + esc(s.desc) + '</textarea></div>' +
+        '<div class="f"><label>沙龙预告视频链接（视频号/其他视频链接，用户端点击跳转播放）</label><input id="mVideo" value="' + esc(s.videoUrl || '') + '" placeholder="https://channels.weixin.qq.com/..."></div>' +
+        '<div class="f"><label>分享要点（每行一条，用户端按序号列表展示）</label><textarea id="mPoints">' + esc((s.sharePoints || []).join('\n')) + '</textarea></div>' +
+        '<div class="f"><label>适合人群</label><textarea id="mAudience">' + esc(s.audience || '') + '</textarea></div>' +
+        '<div class="f"><label>报名须知</label><textarea id="mNotice">' + esc(s.notice || '') + '</textarea></div>' +
         '<div class="f"><label>现场照片（可多选，自动压缩适配尺寸）</label>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pvPhotos"></div>' +
         '<button class="btn sm" onclick="Admin.upSalonPhotos()" style="margin-top:8px">📤 上传现场照片</button></div>' +
@@ -359,6 +363,10 @@
         city: document.getElementById('mCity').value, place: document.getElementById('mPlace').value,
         seats: +document.getElementById('mSeats').value || 60, status: document.getElementById('mStatus').value,
         desc: document.getElementById('mDesc').value,
+        videoUrl: (document.getElementById('mVideo') || {}).value ? document.getElementById('mVideo').value.trim() : '',
+        sharePoints: ((document.getElementById('mPoints') || {}).value || '').split('\n').filter(function (x) { return x.trim(); }),
+        audience: (document.getElementById('mAudience') || {}).value || '',
+        notice: (document.getElementById('mNotice') || {}).value || '',
         photos: window._editTemp.photos || []
       };
       if (!data.title) { toast('请填写标题'); return; }

@@ -2,25 +2,41 @@
  * 乐道AI · 复刻系统 —— 用户端样式（按参考截图 1:1 还原）
  * ============================================================ */
 :root {
-  --bg: #f1f2f4;
+  /* 设计变量对齐原站 css/app.css（v=20260920H） */
+  --bg: #f2f3f5;
+  --bg-l: #f7f9fc;
   --card: #ffffff;
-  --line: #f0f0f0;
-  --txt: #222;
-  --txt2: #888;
-  --txt3: #b3b3b3;
-  --blue: #1667d1;
-  --blue-deep: #1b4b8f;
+  --line: #e8eaed;
+  --txt: #1a1d23;
+  --txt2: #5f6368;
+  --txt3: #9aa0a6;
+  --blue: #185FA5;          /* 原站 --brand */
+  --blue-deep: #0C447C;     /* 原站 --brand-d */
+  --brand-l: #E6F1FB;
+  --brand-b: #c9d8ea;
   --navy: #16385f;
-  --gold: #d3a84c;
-  --gold-deep: #c9a44c;
-  --green: #07c160;
+  --gold: #B8860B;
+  --gold-l: #FAEEDA;
+  --gold-deep: #C9962E;
+  --green: #0F6E56;         /* 原站 --green（会员/价格强调） */
+  --green-l: #E1F5EE;
+  --green-b: #bfe8d9;
   --purple1: #7d6ee0;
   --purple2: #5f51c7;
-  --red: #e64340;
-  --badge-bg: #fdf0e6;
-  --badge-tx: #c96f4a;
-  --tag-bg: #e8f1fb;
-  --tag-tx: #3a7bc8;
+  --red: #A32D2D;
+  --red-l: #FCEBEB;
+  --warn: #c2571b;
+  --badge-bg: #FAEEDA;
+  --badge-tx: #a3741b;
+  --tag-bg: #E6F1FB;
+  --tag-tx: #185FA5;
+  --vp-gold: #D4AF37;
+  --vp-gold-d: #C9962E;
+  --vp-on-gold: #1A1405;
+  --ink3: #9aa0a6;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
   --radius: 16px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -123,9 +139,77 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   background: #fff; border-top: 1px solid #ececec;
   display: flex; padding: 6px 0 max(10px, env(safe-area-inset-bottom));
 }
-.tabbar .tab { flex: 1; text-align: center; color: #9a9a9a; font-size: 11px; }
-.tabbar .tab svg { width: 24px; height: 24px; display: block; margin: 0 auto 2px; }
+.tabbar .tab { flex: 1; text-align: center; color: var(--ink3); font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.tabbar .tab svg { width: 20px; height: 20px; display: block; margin: 0; }
 .tabbar .tab.on { color: var(--blue); }
+
+/* ---------- 会员开通悬浮按钮（原站规格：左缘书签，28×88，金底深棕字） ---------- */
+.vip-fab {
+  position: fixed; left: max(0px, calc(50% - 240px)); top: 56%; transform: translateY(-50%); z-index: 66; width: 28px; height: 88px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  background: var(--vp-gold); color: var(--vp-on-gold);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.vip-fab .fab-t { font-size: 11px; font-weight: 600; line-height: 1.15; }
+
+/* ---------- 圈子（会员动态） ---------- */
+.ccl-gate {
+  margin: 12px 14px 0; padding: 12px 14px; background: #fff; border-radius: 14px;
+  display: flex; align-items: center; gap: 10px; border: 1px solid var(--green-b);
+}
+.ccl-cats { display: flex; gap: 8px; overflow-x: auto; padding: 12px 14px 4px; }
+.ccl-cats::-webkit-scrollbar { display: none; }
+.ccl-cat {
+  flex-shrink: 0; padding: 6px 14px; border-radius: 999px; background: #fff; color: var(--txt2);
+  font-size: 12.5px; border: 1px solid var(--line);
+}
+.ccl-cat.on { background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 600; }
+.ccl-list { padding: 8px 14px 14px; }
+.ccl-card { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.ccl-head { display: flex; align-items: center; gap: 9px; }
+.ccl-chip { font-size: 10px; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
+.ccl-body { margin-top: 10px; font-size: 13.5px; color: var(--txt); line-height: 1.65; }
+.ccl-imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.ccl-imgs img { width: 100%; height: 84px; object-fit: cover; border-radius: 8px; background: #eef0f3; }
+.ccl-video {
+  margin-top: 10px; padding: 9px 12px; background: var(--gold-l); border-radius: 10px;
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8a5a12;
+}
+.ccl-foot {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--ink3);
+}
+.ccl-more { text-align: center; padding: 12px; color: var(--blue); font-size: 12.5px; }
+.ccl-end { text-align: center; padding: 14px; color: #b0b5bb; font-size: 11px; }
+.ccl-pub { padding: 14px; }
+.ccl-pub .fld { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.ccl-pub .fld .lb { font-size: 11.5px; font-weight: 700; color: var(--txt2); margin-bottom: 8px; }
+.ccl-pub .fld input, .ccl-pub .fld textarea {
+  width: 100%; border: 0; outline: 0; font-size: 14px; color: var(--txt); background: transparent; font-family: inherit;
+}
+.ccl-pub .fld textarea { min-height: 110px; line-height: 1.7; }
+.ccl-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ccl-chips .chip {
+  padding: 7px 14px; border-radius: 999px; background: #f4f5f7; color: var(--txt2); font-size: 12.5px;
+}
+.ccl-chips .chip.on { background: var(--brand-l); color: var(--blue); font-weight: 600; }
+.ccl-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.ccl-picks .pk { position: relative; width: 76px; height: 76px; border-radius: 10px; overflow: hidden; background: #f0f2f5; }
+.ccl-picks .pk img { width: 100%; height: 100%; object-fit: cover; }
+.ccl-picks .pk .x {
+  position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(0,0,0,.55); color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center;
+}
+.ccl-pick-add {
+  width: 76px; height: 76px; border: 1px dashed #cfd4da; border-radius: 10px; background: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.ccl-agree { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: var(--txt2); line-height: 1.6; }
+.ccl-agree .box {
+  width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #cfd4da; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px;
+}
+.ccl-agree .box.on { background: var(--blue); border-color: var(--blue); }
 
 /* ---------- 搜索框 ---------- */
 .search-wrap { margin: 12px 14px 4px; }

@@ -51,9 +51,10 @@
   window.qrSVG = qrSVG;
 
   var ICONS = {
-    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><rect x="7" y="12.5" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg>',
-    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="7.5" width="17" height="12.5" rx="2.5"/><path d="M9 7.5V6a2 2 0 012-2h2a2 2 0 012 2v1.5M3.5 12.5h17M12 12v2.5"/></svg>',
-    person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c1.2-3.4 3.9-5 7.2-5s6 1.6 7.2 5"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M16 2v4M8 2v4M3 9h18"/><path d="M12 12.5l3 2-1 3-4-2z"/></svg>',
+    circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.73 15.8A8.4 8.4 0 1 1 9.83 19.71L4.4 21.4z"/></svg>',
+    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>',
+    person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
     back: '‹', chev: '›'
   };
 
@@ -63,10 +64,19 @@
   }
 
   function tabbar(active) {
-    var tabs = [['salon', '沙龙', ICONS.calendar], ['boss', '老板', ICONS.briefcase], ['me', '我的', ICONS.person]];
+    /* 原站底部导航：沙龙 / 圈子 / 老板 / 我的（4 个 Tab，图标同源） */
+    var tabs = [['salon', '沙龙', ICONS.calendar], ['circle', '圈子', ICONS.circle], ['boss', '老板', ICONS.briefcase], ['me', '我的', ICONS.person]];
     return '<div class="tabbar">' + tabs.map(function (t) {
       return '<a class="tab ' + (active === t[0] ? 'on' : '') + '" href="#/' + t[0] + '">' + t[2] + '<span>' + t[1] + '</span></a>';
     }).join('') + '</div>';
+  }
+
+  /* 会员开通悬浮按钮（原站规格：左缘金色书签，仅非会员可见） */
+  function vipFabHtml() {
+    var db = S.get();
+    if (db.user && db.user.role === '会员') return '';
+    return '<div class="vip-fab" onclick="UI.go(\'#/member\')">' +
+      '<span class="fab-t">开</span><span class="fab-t">通</span><span class="fab-t">会</span><span class="fab-t">员</span></div>';
   }
 
   /* 登录入口：顶部胶囊链接（未登录→登录/注册，已登录→切换账号） */
@@ -112,7 +122,7 @@
         '<div class="empty-salon"><div class="ico">🗓️</div><p>暂无可报名活动 · 敬请期待<br>主理人正在筹备下一场沙龙</p></div>') +
 
       '<div class="float-vip" onclick="UI.go(\'#/member\')">开通会员</div>' +
-      tabbar('salon');
+      vipFabHtml() + tabbar('salon');
 
     phone.innerHTML = html;
     startCarousel();
@@ -157,7 +167,7 @@
       '<div class="boss-list">' + list.map(bossCard).join('') +
       (list.length ? '' : '<div class="empty-salon"><div class="ico">🔍</div><p>没有找到相关老板</p></div>') + '</div>' +
       '<div class="hint-line">引荐期间 ' + S.get().config.refundHours + ' 小时内为你对接 · 超时未对接自动退款 · 信息由老板本人提供</div>' +
-      tabbar('boss');
+      vipFabHtml() + tabbar('boss');
     phone.innerHTML = html;
     var input = document.getElementById('bossKw');
     input.oninput = function () { window._bossKw = input.value; render(true); };
@@ -311,7 +321,7 @@
           '<div class="menu-ico">' + it[0] + '</div><span class="mi-t">' + it[1] + '</span>' +
           (it[2] ? '<span class="mi-s' + (it[4] ? ' gold' : '') + '">· ' + it[2] + '</span>' : '') +
           '<span class="arrow">›</span></div>';
-      }).join('') + '</div></div>' + tabbar('me');
+      }).join('') + '</div></div>' + vipFabHtml() + tabbar('me');
   }
 
   /* ================= 页面：会员中心（暗金长页） ================= */
@@ -665,21 +675,62 @@
     var db = S.get();
     var s = db.salons.find(function (x) { return x.id === id; });
     if (!s) return;
-    phone.innerHTML = pagebar('沙龙详情', '#/salon') +
+    var seat = Math.max(0, (s.seats || 0) - (s.joined || 0));
+    var hot = s.seats ? (s.joined / s.seats) >= 0.8 : false;
+    var html = pagebar('沙龙详情', '#/salon') +
       '<div class="boss-detail">' +
       '<div class="bd-card"><div class="boss-name" style="font-size:19px">' + s.title + '</div>' +
       '<div style="margin-top:10px;font-size:13.5px;color:#555;line-height:2">🗓️ ' + s.date + '<br>📍 ' + s.city + ' · ' + s.place + '<br>👥 名额 ' + s.seats + ' · 已报名 ' + s.joined + '</div>' +
       '<div style="margin-top:10px"><span class="tag">' + s.status + '</span></div>' +
-      '<div class="bd-text" style="margin-top:12px">' + s.desc + '</div>' +
+      '<div class="bd-text" style="margin-top:12px">' + s.desc + '</div></div>' +
+
+      /* 名额提示条（原站规格：设了名额且未满才出现） */
+      ((s.seats && seat > 0)
+        ? '<div class="bd-card" style="display:flex;align-items:center;gap:10px">' +
+          '<div style="font-size:15px;font-weight:800;color:' + (hot ? 'var(--warn)' : 'var(--green)') + ';flex-shrink:0">剩 ' + seat + ' 个名额</div>' +
+          '<div style="font-size:11px;color:var(--txt3)">' + (hot ? '名额紧张，报满即止' : '本期名额有限，报满即止') + '</div></div>'
+        : '') +
+
+      /* 沙龙简介 */
+      (s.desc ? '<div class="bd-card"><h4>📝 沙龙简介</h4><div style="font-size:12px;color:var(--txt2);line-height:1.8;white-space:pre-wrap">' + s.desc + '</div></div>' : '') +
+
+      /* 沙龙预告视频（原站规格：粉底卡片 + 跳转播放） */
+      (s.videoUrl
+        ? '<div class="bd-card"><h4>🎬 沙龙预告视频</h4>' +
+          '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdeaea;border-radius:10px" onclick="window.open(\'' + s.videoUrl + '\',\'_blank\')">' +
+          '<div style="width:36px;height:36px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🎬</div>' +
+          '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#a3741b">查看沙龙预告视频</div>' +
+          '<div style="font-size:11px;color:var(--txt3);margin-top:1px">视频号实拍 · 点击跳转观看</div></div>' +
+          '<span style="color:#a3741b">›</span></div></div>'
+        : '') +
+
+      /* 分享要点（原站规格：序号列表） */
+      ((s.sharePoints && s.sharePoints.filter(function (x) { return String(x || '').trim(); }).length)
+        ? '<div class="bd-card"><h4>📌 分享要点</h4>' +
+          s.sharePoints.filter(function (x) { return String(x || '').trim(); }).map(function (x, i) {
+            return '<div style="display:flex;gap:8px;font-size:12px;color:var(--txt2);line-height:1.7;margin-bottom:5px">' +
+              '<span style="flex-shrink:0;color:var(--blue);font-weight:700">' + (i + 1) + '.</span><span style="white-space:pre-wrap">' + x + '</span></div>';
+          }).join('') + '</div>'
+        : '') +
+
+      /* 适合人群 */
+      (s.audience ? '<div class="bd-card"><h4>🎯 适合人群</h4><div style="font-size:12px;color:var(--txt2);line-height:1.8;white-space:pre-wrap">' + s.audience + '</div></div>' : '') +
+
+      /* 报名须知 */
+      (s.notice ? '<div class="bd-card"><h4>📋 报名须知</h4><div style="font-size:12px;color:var(--txt2);line-height:1.8;white-space:pre-wrap">' + s.notice + '</div></div>' : '') +
+
+      /* 沙龙现场照片 */
       ((s.photos && s.photos.length)
-        ? '<div style="margin-top:14px"><h4 style="margin-bottom:10px">📸 沙龙现场</h4><div class="img-grid">' +
+        ? '<div class="bd-card"><h4>📸 沙龙现场</h4><div class="img-grid">' +
           s.photos.map(function (src) { return '<div class="ph"><img src="' + src + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px"></div>'; }).join('') +
           '</div></div>' : '') +
-      '</div>' +
-      (s.status === '报名中' ?
-        '<div style="padding:2px 0 14px"><button class="btn-primary" onclick="User.joinSalon(\'' + s.id + '\')">立即报名</button></div>' :
-        '<div class="bd-foot-hint">当前' + s.status + '，暂不可报名</div>') +
+
+      ((s.status === '报名中')
+        ? '<div style="padding:2px 0 14px"><button class="btn-primary" onclick="User.joinSalon(\'' + s.id + '\')">立即报名</button></div>' +
+          '<div class="bd-foot-hint">会员享专属价与优先锁座 · 到场出示报名凭证入场</div>'
+        : '<div class="bd-foot-hint">当前' + s.status + '，暂不可报名</div>') +
       '</div>';
+    phone.innerHTML = html;
   }
 
   /* ================= 页面：登录（微信授权即登录） ================= */
@@ -699,7 +750,152 @@
   }
 
   /* ================= 路由 ================= */
+  /* ================= 页面：圈子（会员动态，原站第 2 个 Tab） ================= */
+  var CCL_CATS = [['all', '全部'], ['res', '我有资源'], ['need', '我要找资源'], ['coop', '合作招募'], ['idea', '创业随想']];
+
+  function cclAvatar(a, size) {
+    var ch = String((a && (a.nickname || a.name)) || '会').charAt(0);
+    return a && a.avatarUrl
+      ? '<img src="' + a.avatarUrl + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover;flex-shrink:0">'
+      : '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:linear-gradient(135deg,#0F6E56,#2ecc71);color:#fff;display:flex;align-items:center;justify-content:center;font-size:' + Math.round(size * 0.4) + 'px;font-weight:800;flex-shrink:0">' + ch + '</div>';
+  }
+  function cclAgo(ts) {
+    if (!ts) return '';
+    var t = typeof ts === 'number' ? ts : Date.parse(String(ts).replace(/-/g, '/'));
+    if (!t) return ts;
+    var d = Math.floor((Date.now() - t) / 1000);
+    if (d < 60) return '刚刚';
+    if (d < 3600) return Math.floor(d / 60) + ' 分钟前';
+    if (d < 86400) return Math.floor(d / 3600) + ' 小时前';
+    if (d < 604800) return Math.floor(d / 86400) + ' 天前';
+    var dt = new Date(t);
+    return (dt.getMonth() + 1) + '月' + dt.getDate() + '日';
+  }
+  /* 门槛条：非会员提示开通（原站文案） */
+  function cclGateBarHtml() {
+    var db = S.get();
+    var member = db.user && db.user.role === '会员';
+    var logged = window.Auth && Auth.isLoggedIn();
+    if (logged && member) return '';
+    return '<div class="ccl-gate" onclick="UI.go(\'' + (logged ? '#/member' : '#/login') + '\')">' +
+      '<div style="flex:1">' +
+      '<div style="font-size:12.5px;font-weight:700;color:var(--green);line-height:1.5">' +
+      (logged ? '开通会员，才能发自己的动态' : '成为会员，圈子才能发动态') + '</div>' +
+      '<div style="font-size:10.5px;color:#5f6368;margin-top:3px;line-height:1.6">游客可以浏览全部动态；想联系发布人，点动态里的「申请平台引荐」由客服免费拉群。</div>' +
+      '</div><span style="font-size:11px;color:var(--green);font-weight:700;flex-shrink:0">' + (logged ? '去开通 ›' : '登录 ›') + '</span></div>';
+  }
+  function cclCardHtml(p) {
+    var a = p.author || {};
+    var imgs = p.images || [];
+    var imgHtml = '';
+    if (imgs.length === 1) {
+      imgHtml = '<div style="margin-top:10px"><img src="' + imgs[0] + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;background:#eef0f3"></div>';
+    } else if (imgs.length > 1) {
+      imgHtml = '<div class="ccl-imgs">' + imgs.map(function (u) { return '<img src="' + u + '">'; }).join('') + '</div>';
+    }
+    var videoHtml = p.videoUrl
+      ? '<div class="ccl-video" onclick="event.stopPropagation();window.open(\'' + p.videoUrl + '\',\'_blank\')">' +
+        '<span style="font-size:14px">🎬</span><span style="flex:1">探访视频 · 点开看看这家公司</span><span style="font-size:11px;color:#a3741b">播放 ›</span></div>'
+      : '';
+    var catName = (CCL_CATS.filter(function (c) { return c[0] === p.cat; })[0] || [])[1] || '分享';
+    return '<div class="ccl-card" onclick="UI.go(\'#/circle-detail/' + p.id + '\')">' +
+      '<div class="ccl-head">' + cclAvatar(a, 38) +
+      '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (a.nickname || '会员') +
+      (a.industry ? '<span style="font-size:10.5px;font-weight:400;color:#9aa0a6;margin-left:6px">' + a.industry + '</span>' : '') + '</div>' +
+      '<div style="font-size:10.5px;color:#9aa0a6;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (a.company || '') + '</div>' +
+      '</div>' +
+      (p.pinned ? '<span class="ccl-chip" style="background:#fdf3e2;color:#a3741b">📌 置顶</span>' : '') +
+      '<span class="ccl-chip" style="background:var(--brand-l);color:var(--blue)">' + catName + '</span>' +
+      '</div>' +
+      (p.content ? '<div class="ccl-body">' + String(p.content).replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>' : '') +
+      imgHtml + videoHtml +
+      '<div class="ccl-foot"><span>' + cclAgo(p.createdAt) + '</span>' +
+      '<span style="color:var(--green);font-weight:700">' + (p.mine ? '我发的 · 看看 ›' : '想联系 TA ›') + '</span></div>' +
+      '</div>';
+  }
+
+  function pageCircle() {
+    var db = S.get();
+    var cat = window._cclCat || 'all';
+    var list = (db.posts || []).filter(function (p) { return cat === 'all' || p.cat === cat; });
+    list = list.slice().sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.createdAt).localeCompare(String(a.createdAt)); });
+    var html = pagebar('圈子', '#/circle', '<span class="top-act" onclick="UI.go(\'#/circle-pub\')">发动态</span>') +
+      cclGateBarHtml() +
+      '<div class="ccl-cats">' + CCL_CATS.map(function (c) {
+        return '<span class="ccl-cat ' + (cat === c[0] ? 'on' : '') + '" onclick="window._cclCat=\'' + c[0] + '\';render()">' + c[1] + '</span>';
+      }).join('') + '</div>' +
+      '<div class="ccl-list">' +
+      (list.length
+        ? list.map(cclCardHtml).join('') + '<div class="ccl-end">— 到底了 —</div>'
+        : '<div class="empty-salon"><div class="ico">○</div><p>' + (cat === 'all' ? '圈子里还没有动态' : '这个分类下还没有动态') + '</p><div style="font-size:11px;color:#b0b5bb;margin-top:8px">会员发布的供需/资源动态会显示在这里</div></div>') +
+      '</div>' + vipFabHtml() + tabbar('circle');
+    phone.innerHTML = html;
+  }
+
+  function pageCircleDetail(id) {
+    var db = S.get();
+    var p = (db.posts || []).filter(function (x) { return x.id === id; })[0];
+    if (!p) { phone.innerHTML = pagebar('动态详情', '#/circle') + '<div class="empty-salon">动态不存在</div>'; return; }
+    var catName = (CCL_CATS.filter(function (c) { return c[0] === p.cat; })[0] || [])[1] || '分享';
+    phone.innerHTML = pagebar('动态详情', '#/circle') +
+      '<div class="ccl-list">' + cclCardHtml(p) +
+      '<div class="bd-card" style="margin-top:10px"><h4>想联系 TA？</h4>' +
+      '<div class="hint" style="font-size:12px;color:var(--txt2);line-height:1.7">' +
+      '点下方按钮申请平台引荐，客服免费拉群对接。会员每月有免费引荐额度，超出后按平台标准计费。</div>' +
+      '<div style="margin-top:12px"><button class="btn-primary" onclick="User.cclRefer(\'' + p.id + '\')">申请平台引荐</button></div>' +
+      '<div class="bd-foot-hint">分类：' + catName + ' · 信息由发布人本人提供 · 联系方式由平台打码保护</div></div></div>';
+  }
+
+  function pageCirclePub() {
+    var db = S.get();
+    if (!db.user || db.user.role !== '会员') {
+      phone.innerHTML = pagebar('发布动态', '#/circle') +
+        cclGateBarHtml() +
+        '<div class="empty-salon"><div class="ico">👑</div><p>开通会员后即可发布动态</p>' +
+        '<div style="margin-top:14px"><button class="btn-primary" onclick="UI.go(\'#/member\')">开通年度老板会员</button></div></div>';
+      return;
+    }
+    var cat = window._cclPubCat || 'res';
+    if (!window._cclPubImgs) window._cclPubImgs = [];
+    if (!window._cclPubAgree) window._cclPubAgree = false;
+    phone.innerHTML = pagebar('发布动态', '#/circle') +
+      '<div class="ccl-pub">' +
+      '<div class="fld"><div class="lb">昵称（前台只显示微信头像与昵称）</div>' +
+      '<input id="cclNick" maxlength="20" value="' + (db.user.nickname || '') + '" placeholder="例如：老王 · 跨境电商"></div>' +
+      '<div class="fld"><div class="lb">分类</div><div class="ccl-chips">' +
+      CCL_CATS.filter(function (c) { return c[0] !== 'all'; }).map(function (c) {
+        return '<span class="chip ' + (cat === c[0] ? 'on' : '') + '" onclick="window._cclPubCat=\'' + c[0] + '\';render()">' + c[1] + '</span>';
+      }).join('') + '</div></div>' +
+      '<div class="fld"><div class="lb">说点什么</div>' +
+      '<textarea id="cclContent" placeholder="说说你的资源、需求或合作计划…">' + (window._cclPubText || '') + '</textarea></div>' +
+      '<div class="fld"><div class="lb">配图 <span style="font-weight:400;color:#9aa0a6">（选填，最多 9 张）</span></div>' +
+      '<div class="ccl-picks">' +
+      window._cclPubImgs.map(function (u, i) {
+        return '<span class="pk"><img src="' + u + '"><span class="x" onclick="User.cclDelImg(' + i + ')">✕</span></span>';
+      }).join('') +
+      (window._cclPubImgs.length < 9 ? '<div class="ccl-pick-add" onclick="User.cclPickImgs()"><span style="font-size:20px;color:#b0b5bb">+</span><span style="font-size:10px;color:#b0b5bb">添加图片</span></div>' : '') +
+      '</div></div>' +
+      '<div class="fld"><div class="ccl-agree" onclick="window._cclPubAgree=!window._cclPubAgree;render()">' +
+      '<span class="box ' + (window._cclPubAgree ? 'on' : '') + '">✓</span>' +
+      '<span>我已阅读并同意《圈子发布规范》：不发布违法违规内容，联系方式由平台自动打码，首条动态需平台审核。</span></div></div>' +
+      '<div style="padding:2px 0 14px"><button class="btn-primary" onclick="User.cclPublish()">发布动态</button></div>' +
+      '</div>' + tabbar('circle');
+  }
+
+  function pageCircleMine() {
+    var db = S.get();
+    var mine = (db.posts || []).filter(function (p) { return p.mine; });
+    phone.innerHTML = pagebar('我的动态', '#/circle') +
+      '<div class="ccl-list">' +
+      (mine.length ? mine.map(cclCardHtml).join('') : '<div class="empty-salon"><div class="ico">○</div><p>你还没有发布动态</p></div>') +
+      '</div>'; return;
+  }
+
   var routes = {
+    'circle': pageCircle,
+    'circle-pub': pageCirclePub,
+    'circle-mine': pageCircleMine,
     'salon': pageSalon,
     'boss': pageBoss,
     'me': pageMe,
@@ -730,10 +926,13 @@
     else if (h.indexOf('refer/') === 0) { pageRefer(h.split('/')[1]); }
     else if (h.indexOf('client/') === 0) { pageClient(h.split('/')[1]); }
     else if (h.indexOf('salon-detail/') === 0) { pageSalonDetail(h.split('/')[1]); }
+    else if (h.indexOf('circle-detail/') === 0) { pageCircleDetail(h.split('/')[1]); }
     else if (routes[h]) { routes[h](); }
     else { pageSalon(); }
     if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
   }
+  /* 暴露给内联事件（分类筛选/搜索清空等）—— 内联 onclick 在全局作用域执行 */
+  window.render = render;
 
   window.addEventListener('hashchange', function () { render(); });
 
@@ -872,6 +1071,59 @@
       Auth.logout();
       UI.toast('已退出登录');
       setTimeout(function () { UI.go('#/login'); render(); }, 600);
+    },
+
+    /* ---------- 圈子：发帖 / 配图 / 引荐 ---------- */
+    cclPickImgs: function () {
+      if (!window.ImgUp) { UI.toast('图片组件未加载'); return; }
+      ImgUp.pick({ ratio: 0, max: 1200, quality: 0.75, multiple: true }, function (urls) {
+        window._cclPubImgs = (window._cclPubImgs || []).concat(urls).slice(0, 9);
+        User.cclKeepDraft();
+        render();
+        UI.toast('已添加 ' + urls.length + ' 张');
+      });
+    },
+    cclDelImg: function (i) {
+      window._cclPubImgs.splice(i, 1);
+      User.cclKeepDraft();
+      render();
+    },
+    cclKeepDraft: function () {
+      var el = document.getElementById('cclContent');
+      var nk = document.getElementById('cclNick');
+      if (el) window._cclPubText = el.value;
+      if (nk) window._cclPubNick = nk.value;
+    },
+    cclPublish: function () {
+      var db = S.get();
+      var content = (document.getElementById('cclContent') || {}).value || '';
+      var nick = (document.getElementById('cclNick') || {}).value || db.user.nickname;
+      var imgs = window._cclPubImgs || [];
+      if (!content.trim() && !imgs.length) { UI.toast('说点什么，或至少配一张图'); return; }
+      if (!window._cclPubAgree) { UI.toast('请先勾选《圈子发布规范》'); return; }
+      db.user.nickname = nick || db.user.nickname;
+      db.posts.unshift({
+        id: S.uid('p'), cat: window._cclPubCat || 'res', content: content.trim(),
+        images: imgs.slice(), mine: true, pinned: false,
+        createdAt: new Date().toISOString(),
+        author: { nickname: db.user.nickname, avatarUrl: db.user.avatar, company: db.user.profile.company || '', industry: db.user.profile.industry || '' }
+      });
+      S.save();
+      window._cclPubText = ''; window._cclPubImgs = []; window._cclPubAgree = false;
+      UI.toast('发布成功，已进入平台审核');
+      setTimeout(function () { UI.go('#/circle'); }, 700);
+    },
+    cclRefer: function (id) {
+      var db = S.get();
+      var p = (db.posts || []).filter(function (x) { return x.id === id; })[0] || {};
+      db.referrals.unshift({
+        id: S.uid('r'), boss: (p.author && p.author.nickname) || '圈子会员', client: '平台引荐（圈子）',
+        amount: 0, commission: 0, status: '待对接', submitTime: S.today() + ' ' + new Date().toTimeString().slice(0, 5),
+        note: '圈子动态引荐 · 客服免费拉群'
+      });
+      S.save();
+      UI.toast('已提交申请，客服将免费拉群对接');
+      setTimeout(function () { UI.go('#/circle'); }, 800);
     }
   };
 })();
