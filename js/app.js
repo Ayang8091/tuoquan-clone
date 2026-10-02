@@ -139,7 +139,7 @@
     var open = db.salons.filter(function (s) { return s.status === '报名中' && !s.deleted; });
     var banners = (db.banners || []).filter(function (b) { return b.on; });
     var slides = banners.length ? banners.map(function (b) {
-      return { t1: b.title || '乐道AI', t2: b.sub || '', bg: 'boss', link: bnLink(b) };
+      return { t1: b.title || '乐道AI', t2: b.sub || '', bg: 'boss', img: b.img || '', link: bnLink(b) };
     }) : [
       { t1: '老板引荐 · 对接资源', t2: '认识靠谱的上下游老板', bg: 'party', link: '#/boss' },
       { t1: '合作对接', t2: '联系我们·快速合作', bg: 'boss', link: '#/coop-apply' }
@@ -151,7 +151,8 @@
 
       '<div class="carousel" id="carousel"><div class="track">' +
       slides.map(function (b) {
-        return '<div class="slide" style="' + coverStyle(b.bg) + '" onclick="UI.go(\'' + b.link + '\')">' +
+        var sty = b.img ? 'background:#22262e url(' + b.img + ') center/cover no-repeat;' : coverStyle(b.bg);
+        return '<div class="slide" style="' + sty + '" onclick="UI.go(\'' + b.link + '\')">' +
           '<div class="st1">' + esc(b.t1) + '</div><div class="st2">' + esc(b.t2) + '</div></div>';
       }).join('') + '</div>' +
       '<div class="dots">' + slides.map(function (_, i) { return '<i class="' + (i === 0 ? 'on' : '') + '"></i>'; }).join('') + '</div></div>' +

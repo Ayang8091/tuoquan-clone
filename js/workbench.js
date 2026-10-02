@@ -798,7 +798,7 @@
         linkType: document.getElementById('bnLT').value,
         linkValue: document.getElementById('bnLV').value.trim(),
         on: document.getElementById('bnOn').value === '1',
-        img: window.__bnImg || 'img/logo.png'
+        img: window.__bnImg || ''
       };
       if (id) {
         var b = db.banners.filter(function (x) { return x.id === id; })[0];
