@@ -105,7 +105,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 }
 
 /* ---------- 首页运营位 · 紧凑轮播（恢复 v=113 尺寸；保留 scroll-snap 精确对齐） ---------- */
-.carousel { position: relative; margin: 12px 14px 0; border-radius: 14px; overflow: hidden; height: 150px; }
+.carousel { position: relative; margin: 18px 14px 6px; border-radius: 14px; overflow: hidden; height: 150px; }
 .carousel .track {
   display: flex; height: 100%;
   overflow-x: auto; overflow-y: hidden;
@@ -122,7 +122,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 .carousel .slide::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
 .carousel .slide .st1 { font-size: 18px; font-weight: 700; position: relative; z-index: 1; }
 .carousel .slide .st2 { font-size: 12px; opacity: .85; margin-top: 4px; position: relative; z-index: 1; }
-.carousel .dots { display: flex; gap: 5px; justify-content: center; margin: 10px 0 2px; }
+.carousel .dots { display: flex; gap: 5px; justify-content: center; margin: 14px 0 20px; }
 .carousel .dots i { width: 14px; height: 5px; border-radius: 3px; background: #cfd4da; cursor: pointer; }
 .carousel .dots i.on { background: var(--blue); }
 
