@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>乐道AI · 后台管理系统</title>
-<link rel="icon" type="image/png" href="img/favicon.png?v=111"><link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=111">
-<link rel="stylesheet" href="css/admin.css?v=111">
+<link rel="icon" type="image/png" href="img/favicon.png?v=112"><link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=112">
+<link rel="stylesheet" href="css/admin.css?v=112">
 </head>
 <body>
 <div id="toast"></div>
@@ -13,21 +13,21 @@
 <!-- 登录 -->
 <div class="login-mask" id="loginMask">
   <div class="login-box">
-    <img class="lg-logo" src="img/logo-icon.png?v=111" alt="乐道AI">
+    <img class="lg-logo" src="img/logo-icon.png?v=112" alt="乐道AI">
     <h2>乐道AI · 后台管理</h2>
     <div class="sub">ledaoykj.com 管理端（复刻演示）</div>
     <input id="loginUser" placeholder="账号" value="admin">
     <input id="loginPass" type="password" placeholder="密码" value="123456">
     <button class="lbtn" onclick="Admin.login()">登 录</button>
     <div class="tip">演示账号：admin / 123456</div>
-    <a class="lg-user-link" href="https://tuoquan-ai.app.workbuddy.host/index.html?v=111#/login">前往用户端登录 ›</a>
+    <a class="lg-user-link" href="https://tuoquan-ai.app.workbuddy.host/index.html?v=112#/login">前往用户端登录 ›</a>
   </div>
 </div>
 
 <div id="admin">
 <div class="layout">
   <div class="sidebar">
-    <div class="sb-logo"><img class="mark" src="img/logo-icon.png?v=111" alt=""><div>乐道AI 管理后台<small>乐道科技 · 复刻演示</small></div></div>
+    <div class="sb-logo"><img class="mark" src="img/logo-icon.png?v=112" alt=""><div>乐道AI 管理后台<small>乐道科技 · 复刻演示</small></div></div>
     <div class="sb-group">概览</div>
     <div class="sb-item on" data-page="dashboard">📊 数据看板</div>
     <div class="sb-group">业务管理</div>
@@ -49,10 +49,10 @@
       <div class="tb-title" id="tbTitle">数据看板</div>
       <div class="tb-right">
         <span class="role">ledaoykj.com</span>
-        <img class="ava" src="img/logo-icon.png?v=111" alt="admin">
+        <img class="ava" src="img/logo-icon.png?v=112" alt="admin">
         <span class="role">admin · 超级管理员</span>
         <button class="btn sm" onclick="Admin.logout()">退出</button>
-        <button class="btn sm primary" onclick="window.open('https://tuoquan-ai.app.workbuddy.host/index.html?v=111')">打开用户端</button>
+        <button class="btn sm primary" onclick="window.open('https://tuoquan-ai.app.workbuddy.host/index.html?v=112')">打开用户端</button>
       </div>
     </div>
 
@@ -132,7 +132,7 @@
       <!-- 运营位 -->
       <div class="page" id="page-banners">
         <div class="card"><h3>首页运营位（沙龙页顶部轮播）<span class="r"><button class="btn sm primary" onclick="Admin.editBanner()">+ 新增运营位</button></span></h3>
-          <p style="font-size:12px;color:#86909c;margin:4px 0 12px">显示在用户端「沙龙活动」首页最顶部，手动横滑切换；图片建议 1200×500 横图，前台按 2.4:1 自动裁切；建议最多 3 张，最要紧的放最上面；上架后立即生效。</p>
+          <p style="font-size:12px;color:#86909c;margin:4px 0 12px">显示在用户端「沙龙活动」首页最顶部，手动横滑切换；图片任意格式（含 iPhone HEIC）与任意尺寸，自动裁为 2.4:1 横图并压缩；建议最多 3 张，最要紧的放最上面；上架后立即生效。</p>
           <table id="bannerTable"></table>
         </div>
       </div>
@@ -163,10 +163,10 @@
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
-<script src="js/config.js?v=111"></script>
-<script src="js/data.js?v=111"></script>
-<script src="js/cloud.js?v=111"></script>
-<script src="js/upload.js?v=111"></script>
-<script src="js/admin.js?v=111"></script>
+<script src="js/config.js?v=112"></script>
+<script src="js/data.js?v=112"></script>
+<script src="js/cloud.js?v=112"></script>
+<script src="js/upload.js?v=112"></script>
+<script src="js/admin.js?v=112"></script>
 </body>
 </html>

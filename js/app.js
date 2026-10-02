@@ -1434,7 +1434,7 @@
     /* ---------- 圈子 ---------- */
     cclPickImgs: function () {
       if (!window.ImgUp) { UI.toast('图片组件未加载'); return; }
-      ImgUp.pick({ ratio: 0, max: 1200, quality: 0.75, multiple: true }, function (urls) {
+      ImgUp.pick({ ratio: 0, max: 1200, targetKB: 220, multiple: true }, function (urls) {
         window._cclPubImgs = (window._cclPubImgs || []).concat(urls).slice(0, 9);
         User.cclKeepDraft(); render();
         UI.toast('已添加 ' + urls.length + ' 张');

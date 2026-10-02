@@ -239,14 +239,14 @@
     },
     delPhoto: function (i) { window._editTemp.photos.splice(i, 1); Admin.renderPhotoPv(); },
     upPhotos: function () {
-      ImgUp.pick({ ratio: 0, max: 1000, quality: 0.8, multiple: true }, function (urls) {
+      ImgUp.pick({ ratio: 0, max: 1000, targetKB: 200, multiple: true }, function (urls) {
         window._editTemp.photos = window._editTemp.photos.concat(urls);
         Admin.renderPhotoPv();
         toast('已压缩并添加 ' + urls.length + ' 张');
       });
     },
     upCover: function () {
-      ImgUp.pick({ ratio: 2, max: 900, quality: 0.82 }, function (urls) {
+      ImgUp.pick({ ratio: 2, max: 900, targetKB: 160 }, function (urls) {
         window._editTemp.videoCover = urls[0];
         var pv = document.getElementById('pvCover');
         pv.src = urls[0]; pv.style.display = '';
@@ -254,7 +254,7 @@
       });
     },
     upAva: function () {
-      ImgUp.pick({ ratio: 1, max: 300, quality: 0.85 }, function (urls) {
+      ImgUp.pick({ ratio: 1, max: 300, targetKB: 60 }, function (urls) {
         window._editTemp.avatarImg = urls[0];
         var pv = document.getElementById('pvAva');
         pv.src = urls[0]; pv.style.display = '';
@@ -365,7 +365,7 @@
       Admin.renderPhotoPv();
     },
     upSalonPhotos: function () {
-      ImgUp.pick({ ratio: 0, max: 1000, quality: 0.8, multiple: true }, function (urls) {
+      ImgUp.pick({ ratio: 0, max: 1000, targetKB: 200, multiple: true }, function (urls) {
         window._editTemp.photos = window._editTemp.photos.concat(urls);
         Admin.renderPhotoPv();
         toast('已压缩并添加 ' + urls.length + ' 张');
@@ -561,11 +561,11 @@
       var db = S.get();
       var b = db.banners.find(function (x) { return x.id === id; }) || { title: '', sub: '', linkType: 'vip', linkValue: '', on: true, img: '' };
       modal('<h3>' + (id ? '编辑运营位' : '新增运营位') + '</h3>' +
-        '<div class="f"><label>封面图（建议 1200×500 横图，选填）</label>' +
+        '<div class="f"><label>封面图（任意格式 / 尺寸 · 自动裁为 2.4:1 横图并压缩，选填）</label>' +
         '<div style="display:flex;gap:12px;align-items:center">' +
         '<div id="bnPrev" style="width:180px;height:75px;border-radius:8px;background:#f2f3f5 center/cover no-repeat;' + (b.img ? 'background-image:url(' + esc(b.img) + ');' : '') + '"></div>' +
         '<button class="btn sm" onclick="document.getElementById(\'bnFile\').click()">📷 上传图片</button>' +
-        '<input type="file" id="bnFile" accept="image/*" style="display:none" onchange="Admin.pickBannerImg(this)"></div></div>' +
+        '<input type="file" id="bnFile" accept="image/*,.heic,.heif" style="display:none" onchange="Admin.pickBannerImg(this)"></div></div>' +
         '<div class="f"><label>主标题（选填 · 最多 20 字）</label><input id="mBnTitle" maxlength="20" value="' + esc(b.title) + '"></div>' +
         '<div class="f"><label>副标题（选填 · 最多 24 字）</label><input id="mBnSub" maxlength="24" value="' + esc(b.sub) + '"></div>' +
         '<div class="mrow">' +
@@ -581,12 +581,13 @@
     pickBannerImg: function (inp) {
       var file = inp.files && inp.files[0];
       if (!file) return;
-      ImgUp.pick({ ratio: 2.4, max: 900, quality: .82 }, function (urls) {
-        var u = urls && urls[0];
-        if (!u) return;
+      inp.value = ''; /* 允许重复选择同一文件 */
+      ImgUp.process(file, { ratio: 2.4, max: 900, targetKB: 160 }).then(function (u) {
         var el = document.getElementById('bnPrev');
         if (el) { el.style.backgroundImage = 'url(' + u + ')'; el.dataset.img = u; }
-        toast('图片已就绪，点「保存」生效');
+        toast('图片已就绪（' + Math.round(u.length / 1365) + 'KB），点「保存」生效');
+      }).catch(function () {
+        toast('图片读取失败：HEIC 原图需联网加载转换器，或改用 JPG/PNG', 1);
       });
     },
     saveBanner: function (id) {

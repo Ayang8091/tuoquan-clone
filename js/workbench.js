@@ -737,7 +737,7 @@
       var db = S.get();
       var bodyHtml =
         '<div class="d-block"><div class="wt">首页运营位</div>' +
-        '<div class="wb-note">显示在「沙龙活动」首页最顶部 · 手动横滑（不自动轮播）<br>图片推荐 1200×500 横图，前台按 2.4:1 自动裁切<br>建议最多 3 张 · 最要紧的放最上面 · 改完立即生效</div></div>' +
+        '<div class="wb-note">显示在「沙龙活动」首页最顶部 · 手动横滑（不自动轮播）<br>图片任意格式与尺寸，自动裁为 2.4:1 横图并压缩<br>建议最多 3 张 · 最要紧的放最上面 · 改完立即生效</div></div>' +
         '<div class="d-block">' + (db.banners.length ? db.banners.map(function (b) {
           return '<div class="wb-card"><div class="wc-top">' + esc(b.title || '（无标题 · 纯图展示）') + ' ' +
             (b.on ? '<span class="wb-tag" style="background:#e6f5ec;color:#1a7f4b">上架中</span>' : '<span class="wb-tag" style="background:#f1f2f4;color:#8a8f99">已下架</span>') + '</div>' +
@@ -761,7 +761,7 @@
       var LT = [['vip', '会员页'], ['bosses', '老板资源'], ['salon', '指定沙龙（填活动ID）'], ['url', '外部链接（填完整URL）'], ['none', '不跳转']];
       var bodyHtml =
         '<div class="d-block"><div class="wt">' + (id ? '编辑运营位' : '新增运营位') + '</div>' +
-        '<div class="wb-note">图片建议 1200×500 横图，前台按 2.4:1 自动裁切；标题副标题选填，纯图也可</div></div>' +
+        '<div class="wb-note">图片任意格式（含 iPhone HEIC）与任意尺寸，自动裁为 2.4:1 横图并压缩；标题副标题选填，纯图也可</div></div>' +
         '<div class="d-block">' +
         '<div class="wb-field"><div class="wb-lab">封面图</div>' +
         '<div id="bnPrev" style="height:110px;border-radius:12px;background:#f2f3f5 center/cover no-repeat;' + (b.img ? 'background-image:url(' + b.img + ');' : '') + '"></div>' +
@@ -780,7 +780,7 @@
     },
     bnPick: function () {
       if (!window.ImgUp) { UI.toast('上传组件未加载'); return; }
-      ImgUp.pick({ ratio: 2.4, max: 900, quality: .82 }, function (urls) {
+      ImgUp.pick({ ratio: 2.4, max: 900, targetKB: 160 }, function (urls) {
         var u = urls && urls[0];
         if (!u) return;
         window.__bnImg = u;
@@ -1134,4 +1134,8 @@
   };
 
   window.Workbench = WB;
+
+  /* 深链兜底：app.js 的首帧渲染早于本文件加载（微任务先于下一个 script），
+     直接打开或刷新 #/boss-* 会被降级成默认首页 —— 这里补渲染一次 */
+  if (window.render && /^#\/boss-/.test(location.hash)) setTimeout(function () { window.render(); }, 0);
 })();

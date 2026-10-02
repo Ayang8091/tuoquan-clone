@@ -396,4 +396,7 @@
   }
 
   window.Distro = D;
+
+  /* 深链兜底：同 workbench.js —— 直接打开/刷新 #/distro* 时补一次渲染 */
+  if (window.render && /^#\/distro/.test(location.hash)) setTimeout(function () { window.render(); }, 0);
 })();
