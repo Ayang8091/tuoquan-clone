@@ -105,16 +105,16 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 }
 
 /* ---------- 首页运营位 · 紧凑轮播（恢复 v=113 尺寸；保留 scroll-snap 精确对齐） ---------- */
-.carousel { position: relative; margin: 18px 14px 6px; border-radius: 14px; overflow: hidden; height: 150px; }
+.carousel { position: relative; margin: 18px 14px 6px; border-radius: 14px; overflow: hidden; }
 .carousel .track {
-  display: flex; height: 100%;
+  display: flex;
   overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .carousel .track::-webkit-scrollbar { display: none; }
 .carousel .slide {
-  flex: 0 0 88%; width: 88%; height: 100%; margin-right: 8px; border-radius: 14px; position: relative;
+  flex: 0 0 88%; width: 88%; height: 150px; margin-right: 8px; border-radius: 14px; position: relative;
   scroll-snap-align: start; scroll-snap-stop: always;
   color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end;
   background-size: cover; background-position: center; background-color: #333;
