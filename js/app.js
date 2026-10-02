@@ -155,7 +155,9 @@
         return '<div class="slide" style="' + sty + '" onclick="UI.go(\'' + b.link + '\')">' +
           '<div class="st1">' + esc(b.t1) + '</div><div class="st2">' + esc(b.t2) + '</div></div>';
       }).join('') + '</div>' +
-      '<div class="dots">' + slides.map(function (_, i) { return '<i class="' + (i === 0 ? 'on' : '') + '"></i>'; }).join('') + '</div></div>' +
+      '<div class="dots">' + slides.map(function (_, i) {
+        return '<i class="' + (i === 0 ? 'on' : '') + '" onclick="event.stopPropagation();HUI.bnGo(' + i + ')"></i>';
+      }).join('') + '</div></div>' +
 
       (open.length ? open.map(salonCard).join('') :
         '<div class="empty-salon"><div class="ico">🗓️</div><p>暂无可报名活动 · 敬请期待<br>主理人正在筹备下一场沙龙</p></div>') +
@@ -186,14 +188,40 @@
 
   function startCarousel(n) {
     var car = document.getElementById('carousel');
-    if (!car || n <= 1) return;
-    var idx = 0, track = car.querySelector('.track'), dots = car.querySelectorAll('.dots i');
-    setInterval(function () {
-      if (!document.body.contains(track)) return clearInterval(this);
-      idx = (idx + 1) % n;
-      track.style.transform = 'translateX(-' + idx * (100 / n) + '%)';
+    if (!car) return;
+    /* 高度 = 视口高 − 顶栏实际占位 → 首屏正好完整一栏，上下无空隙 */
+    var headH = car.getBoundingClientRect().top;
+    car.style.height = Math.max(360, window.innerHeight - headH) + 'px';
+    var dots = car.querySelectorAll('.dots i');
+    if (n <= 1) { if (dots.length) dots[0].parentNode.style.display = 'none'; return; }
+    var track = car.querySelector('.track');
+    var idx = 0, lastUser = 0, timer = null;
+
+    function sync() {
+      idx = Math.min(n - 1, Math.max(0, Math.round(track.scrollLeft / Math.max(1, track.clientWidth))));
       dots.forEach(function (d, i) { d.classList.toggle('on', i === idx); });
-    }, 3500);
+    }
+    function go(i, smooth) {
+      idx = ((i % n) + n) % n;
+      var left = idx * track.clientWidth;
+      if (track.scrollTo) { try { track.scrollTo({ left: left, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { track.scrollLeft = left; } }
+      else track.scrollLeft = left;
+      sync();
+    }
+    /* 导航点 → 平滑滚动到对应栏目（与栏目一一对应） */
+    window.HUI = window.HUI || {};
+    window.HUI.bnGo = function (i) { lastUser = Date.now(); go(i, true); };
+    /* 手势滑动时同步导航点，并暂停自动跳转 */
+    track.addEventListener('scroll', sync, { passive: true });
+    ['touchstart', 'pointerdown', 'wheel'].forEach(function (ev) {
+      track.addEventListener(ev, function () { lastUser = Date.now(); }, { passive: true });
+    });
+    /* 自动跳转：整屏平滑滚动到下一栏，精确对齐（scroll-snap 兜底） */
+    timer = setInterval(function () {
+      if (!document.body.contains(track)) return clearInterval(timer);
+      if (Date.now() - lastUser < 4500) return;
+      go(idx + 1, true);
+    }, 4000);
   }
 
   /* ================= 页面：老板列表 ================= */

@@ -104,20 +104,29 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   .hh-right .badge-dist { display: none; }
 }
 
-/* ---------- 轮播 ---------- */
-.carousel { position: relative; margin: 12px 14px 0; border-radius: 14px; overflow: hidden; }
-.carousel .track { display: flex; transition: transform .35s; }
-.carousel .slide {
-  min-width: 88%; margin-right: 8px; height: 150px; border-radius: 14px; position: relative;
-  color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end;
-  background-size: cover; background-position: center; background-color: #333;
+/* ---------- 首页运营位 · 整屏轮播（100vh 一屏一栏，scroll-snap 精确对齐） ---------- */
+.carousel { position: relative; margin: 0; overflow: hidden; background: #111; height: 100vh; height: 100dvh; }
+/* JS 会按「视口高 − 顶栏高」精确设置高度，保证首屏完整显示一栏、上下无空隙 */
+.carousel .track {
+  display: flex; height: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
-.carousel .slide::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
-.carousel .slide .st1 { font-size: 18px; font-weight: 700; position: relative; z-index: 1; }
-.carousel .slide .st2 { font-size: 12px; opacity: .85; margin-top: 4px; position: relative; z-index: 1; }
-.carousel .dots { display: flex; gap: 5px; justify-content: center; margin: 10px 0 2px; }
-.carousel .dots i { width: 14px; height: 5px; border-radius: 3px; background: #cfd4da; }
-.carousel .dots i.on { background: var(--blue); }
+.carousel .track::-webkit-scrollbar { display: none; }
+.carousel .slide {
+  flex: 0 0 100%; width: 100%; height: 100%;
+  scroll-snap-align: start; scroll-snap-stop: always;
+  position: relative; color: #fff; padding: 24px 20px 130px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background-size: cover; background-position: center; background-color: #22262e;
+}
+.carousel .slide::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 40%, rgba(0,0,0,.6)); }
+.carousel .slide .st1 { font-size: 24px; font-weight: 700; position: relative; z-index: 1; text-shadow: 0 1px 6px rgba(0,0,0,.45); }
+.carousel .slide .st2 { font-size: 14px; opacity: .9; margin-top: 6px; position: relative; z-index: 1; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.carousel .dots { position: absolute; left: 0; right: 0; bottom: 96px; display: flex; gap: 7px; justify-content: center; z-index: 2; margin: 0; }
+.carousel .dots i { width: 20px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.4); cursor: pointer; }
+.carousel .dots i.on { background: #fff; }
 
 /* ---------- 空状态 ---------- */
 .empty-salon { text-align: center; padding: 56px 20px 30px; color: var(--txt2); }
