@@ -189,21 +189,21 @@
   function startCarousel(n) {
     var car = document.getElementById('carousel');
     if (!car) return;
-    /* 高度 = 视口高 − 顶栏实际占位 → 首屏正好完整一栏，上下无空隙 */
-    var headH = car.getBoundingClientRect().top;
-    car.style.height = Math.max(360, window.innerHeight - headH) + 'px';
     var dots = car.querySelectorAll('.dots i');
     if (n <= 1) { if (dots.length) dots[0].parentNode.style.display = 'none'; return; }
     var track = car.querySelector('.track');
+    /* 步长 = slide 实宽 + 右边距（88% + 8px），跳转/吸附按同一步长 → 精确对齐 */
+    var s0 = track.querySelector('.slide');
+    var step = s0 ? s0.getBoundingClientRect().width + (parseFloat(getComputedStyle(s0).marginRight) || 0) : track.clientWidth;
     var idx = 0, lastUser = 0, timer = null;
 
     function sync() {
-      idx = Math.min(n - 1, Math.max(0, Math.round(track.scrollLeft / Math.max(1, track.clientWidth))));
+      idx = Math.min(n - 1, Math.max(0, Math.round(track.scrollLeft / Math.max(1, step))));
       dots.forEach(function (d, i) { d.classList.toggle('on', i === idx); });
     }
     function go(i, smooth) {
       idx = ((i % n) + n) % n;
-      var left = idx * track.clientWidth;
+      var left = idx * step;
       if (track.scrollTo) { try { track.scrollTo({ left: left, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { track.scrollLeft = left; } }
       else track.scrollLeft = left;
       sync();
