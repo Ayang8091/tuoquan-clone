@@ -912,6 +912,7 @@
         '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">微信收款码</div>' + qr(p.wxQr) + '</div>' +
         '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">支付宝收款码</div>' + qr(p.aliQr) + '</div>' +
         '<div style="font-size:13px;color:#1d2129;line-height:2">收款人：微信 ' + esc(p.wxName || '—') + ' · 支付宝 ' + esc(p.aliName || '—') + '<br>' +
+        '收款链接：' + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" style="color:#165dff;word-break:break-all">' + esc(p.link) + '</a>' : '—') + '<br>' +
         '默认金额：' + (p.amount ? '¥' + p.amount : '按订单金额') + '<br>订单说明：' + esc(p.note || '—') +
         (p.updatedAt ? '<br><span style="font-size:12px;color:#86909c">更新于 ' + esc(p.updatedAt.slice(0, 16).replace('T', ' ')) + '</span>' : '') + '</div></div>';
     },
@@ -930,6 +931,7 @@
         '<div style="display:flex;gap:20px;margin-bottom:16px">' + qrBox('Wx', '微信收款码') + qrBox('Ali', '支付宝收款码') + '</div>' +
         '<div class="f"><label>微信收款人</label><input id="mPayWxName" value="' + esc(p.wxName || '') + '" placeholder="微信昵称 / 收款人"></div>' +
         '<div class="f"><label>支付宝收款人</label><input id="mPayAliName" value="' + esc(p.aliName || '') + '" placeholder="支付宝姓名 / 账号"></div>' +
+        '<div class="f"><label>收款链接</label><input id="mPayLink" value="' + esc(p.link || '') + '" placeholder="https://...（微信/支付宝收款码链接，支付时向付款人展示）"></div>' +
         '<div class="f"><label>默认收款金额（元）</label><input id="mPayAmount" type="number" min="0" value="' + (p.amount || '') + '" placeholder="留空或 0 = 按订单金额"></div>' +
         '<div class="f"><label>订单说明</label><input id="mPayNote" value="' + esc(p.note || '') + '" placeholder="支付时向付款人展示，例：沙龙报名"></div>' +
         '<div style="font-size:12px;color:#86909c;margin:4px 0 12px">二维码上传后由服务端保存（/api/pay/upload），返回可访问地址；保存后用户端收银台支付时展示扫码付款。</div>' +
@@ -962,6 +964,7 @@
         wxQr: t.wxQr || '', aliQr: t.aliQr || '',
         wxName: (document.getElementById('mPayWxName').value || '').trim(),
         aliName: (document.getElementById('mPayAliName').value || '').trim(),
+        link: (document.getElementById('mPayLink').value || '').trim(),
         amount: +(document.getElementById('mPayAmount').value || 0) || 0,
         note: (document.getElementById('mPayNote').value || '').trim()
       };

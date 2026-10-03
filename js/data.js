@@ -58,6 +58,7 @@
         payInfo: {                  // 微信/支付宝收款信息（后台「收款设置」可改，服务端 pay/save 同步）
           wxQr: '', aliQr: '',      // 收款二维码图片地址（/uploads/payqr-*.jpg）
           wxName: '', aliName: '',  // 收款人名称
+          link: '',                 // 收款链接（微信/支付宝收款码链接，支付弹窗展示可复制）
           amount: 0,                // 默认收款金额（0=按订单金额）
           note: '',                 // 订单说明（收款弹窗展示）
           updatedAt: ''

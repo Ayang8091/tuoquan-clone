@@ -109,7 +109,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 const PAY_FILE = path.join(DATA_DIR, 'payinfo.json');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const PAY_DEFAULT = { wxQr: '', aliQr: '', wxName: '', aliName: '', amount: 0, note: '', updatedAt: '' };
+const PAY_DEFAULT = { wxQr: '', aliQr: '', wxName: '', aliName: '', link: '', amount: 0, note: '', updatedAt: '' };
 function payRead() {
   try { return Object.assign({}, PAY_DEFAULT, JSON.parse(fs.readFileSync(PAY_FILE, 'utf8'))); }
   catch (e) { return Object.assign({}, PAY_DEFAULT); }
@@ -144,6 +144,9 @@ function paySanitize(b) {
   p.aliQr = /^\/?uploads\/[\w.-]+$/.test(str(b.aliQr, 200)) ? (b.aliQr[0] === '/' ? b.aliQr : '/' + b.aliQr) : str(b.aliQr, 200);
   p.wxName = str(b.wxName, 40);
   p.aliName = str(b.aliName, 40);
+  /* 收款链接：仅接受 http/https 链接（留空表示未配置） */
+  const link = str(b.link, 300).trim();
+  p.link = /^https?:\/\/\S+$/i.test(link) ? link : '';
   p.amount = Math.max(0, +b.amount || 0);
   p.note = str(b.note, 200);
   return p;

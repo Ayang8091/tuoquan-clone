@@ -484,8 +484,12 @@
       ['🤝', '我的引荐凭证', '', '#/refer-ticket', false],
       ['💰', '分销中心', isBoss ? '老板 · 亲自分销' : (u.distributeEnabled ? '已开通' : '可申请'), '#/distro', isBoss],
       ['🧾', '我的支付记录', '', '#/my-pay', false],
+      /* HIDDEN-v132 入口隐藏、代码保留（恢复：取消下面两行注释）
       ['💳', '收款设置', '微信/支付宝收款码 · 金额 · 说明', 'paysetup', isBoss, isBoss],
+      end HIDDEN-v132 */
+      /* HIDDEN-v132 入口隐藏、代码保留（恢复：取消本行与下一行注释）
       ['🏢', '老板工作台', isBoss ? '管理后台入口' : '', '#/boss-dash', isBoss, isBoss],
+      end HIDDEN-v132 */
       ['🎓', '会员专属顾问', u.advisorAdded ? '已添加' : '开通会员后可加', '#/advisor', u.member && !u.advisorAdded],
       ['💼', '商务合作', '有资源 / 有预算 · 找乐道谈', '#/coop-apply', false],
       ['🔔', '消息通知', '', '#/notifs', false],
@@ -1355,16 +1359,16 @@
   /* ================= 微信/支付宝收款（配置读取 + 收款确认弹窗） ================= */
   function payInfoOf(db) {
     var p = ((db || S.get()).config || {}).payInfo || {};
-    return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxName: p.wxName || '', aliName: p.aliName || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
+    return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxName: p.wxName || '', aliName: p.aliName || '', link: p.link || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
   }
   function hasPayQr(p) { return !!(p.wxQr || p.aliQr); }
   /* 收款确认弹窗：展示商家收款二维码/金额/订单说明，付款人扫码后点「我已完成支付」回调落库。
-   * 未配置收款码时直接回调（保持原有模拟支付流程，行为完全兼容）。 */
+   * 配置了二维码或收款链接任一即弹窗；都未配置时直接回调（保持原有模拟支付流程，行为完全兼容）。 */
   function payCollect(opt, onDone) {
     var p = payInfoOf();
-    if (!hasPayQr(p)) { onDone('微信支付'); return; }
-    var side = p.wxQr ? 'wx' : 'ali';
-    window._pcSide = side;
+    if (!hasPayQr(p) && !p.link) { onDone('微信支付'); return; }
+    var side = p.wxQr ? 'wx' : (p.aliQr ? 'ali' : '');
+    window._pcSide = side || 'wx';
     var html =
       '<div class="sheet pay-sheet tall" id="collectSheet">' +
       '<span class="close-x" onclick="UI.closeSheet()">✕</span>' +
@@ -1372,13 +1376,16 @@
       '<div class="pc-amount">' + money(opt.amount || 0) + '</div>' +
       (opt.title ? '<div class="pc-title">' + esc(opt.title) + '</div>' : '') +
       (p.note ? '<div class="pc-note">📋 ' + esc(p.note) + '</div>' : '') +
-      ((p.wxQr && p.aliQr)
-        ? '<div class="pc-tabs"><span class="chip ' + (side === 'wx' ? 'on' : '') + '" id="pcTabWx" onclick="User.pcSide(\'wx\')">微信支付</span>' +
-          '<span class="chip ' + (side === 'ali' ? 'on' : '') + '" id="pcTabAli" onclick="User.pcSide(\'ali\')">支付宝</span></div>'
-        : '') +
-      '<div class="pc-qr"><img id="pcQrImg" src="' + (side === 'wx' ? p.wxQr : p.aliQr) + '" alt="收款二维码">' +
-      '<div class="pc-qrname" id="pcQrName">' + esc(side === 'wx' ? (p.wxName || '微信收款') : (p.aliName || '支付宝收款')) + '</div>' +
-      '<div class="pc-tip" id="pcTip">长按或截图 → 打开' + (side === 'wx' ? '微信' : '支付宝') + '扫一扫付款</div></div>' +
+      (p.link ? '<div class="pc-note pc-link" onclick="User.copyPayLink()">🔗 收款链接：<span class="u">' + esc(p.link) + '</span>（点击复制）</div>' : '') +
+      (side
+        ? ((p.wxQr && p.aliQr)
+          ? '<div class="pc-tabs"><span class="chip ' + (side === 'wx' ? 'on' : '') + '" id="pcTabWx" onclick="User.pcSide(\'wx\')">微信支付</span>' +
+            '<span class="chip ' + (side === 'ali' ? 'on' : '') + '" id="pcTabAli" onclick="User.pcSide(\'ali\')">支付宝</span></div>'
+          : '') +
+          '<div class="pc-qr"><img id="pcQrImg" src="' + (side === 'wx' ? p.wxQr : p.aliQr) + '" alt="收款二维码">' +
+          '<div class="pc-qrname" id="pcQrName">' + esc(side === 'wx' ? (p.wxName || '微信收款') : (p.aliName || '支付宝收款')) + '</div>' +
+          '<div class="pc-tip" id="pcTip">长按或截图 → 打开' + (side === 'wx' ? '微信' : '支付宝') + '扫一扫付款</div></div>'
+        : '<div class="pc-qr"><div class="pc-tip" style="font-size:13px;color:var(--txt2);padding:8px 0">请点击上方收款链接完成付款<br>（链接已复制到剪贴板可粘贴打开）</div></div>') +
       '<button class="btn-wechat" style="width:100%;margin-top:10px" id="pcDone">我已完成支付</button>' +
       '</div>';
     var old = document.getElementById('collectSheet');
@@ -1399,6 +1406,11 @@
       if (target === 'wxprofile') { User.fetchWxProfile(); return; }
       if (target === 'paysetup') { User.openPaySetup(); return; }
       UI.go(target || '#/me');
+    },
+    /* 复制收款链接（收款弹窗内） */
+    copyPayLink: function () {
+      var p = payInfoOf();
+      UI.copy(p.link);
     },
     /* 收款弹窗切换 微信/支付宝 */
     pcSide: function (s) {
@@ -1601,6 +1613,7 @@
         '</div>' +
         '<div class="f-label">微信收款人</div><input class="f-input" id="psWxName" value="' + esc(p.wxName) + '" placeholder="微信昵称 / 收款人">' +
         '<div class="f-label">支付宝收款人</div><input class="f-input" id="psAliName" value="' + esc(p.aliName) + '" placeholder="支付宝姓名 / 账号">' +
+        '<div class="f-label">收款链接（微信/支付宝收款码链接，选填）</div><input class="f-input" id="psLink" value="' + esc(p.link) + '" placeholder="https://...（支付时向付款人展示，可复制）">' +
         '<div class="f-label">默认收款金额（元，留空/0 = 按订单金额）</div><input class="f-input" id="psAmount" type="number" min="0" value="' + (p.amount || '') + '">' +
         '<div class="f-label">订单说明（支付时向付款人展示）</div><input class="f-input" id="psNote" value="' + esc(p.note) + '" placeholder="例：沙龙报名 / 老板引荐服务费">' +
         '<button class="btn-wechat" style="width:100%;margin-top:14px" onclick="User.savePaySetup()">保存收款信息</button>' +
@@ -1638,6 +1651,7 @@
       var payload = {
         wxQr: t.wxQr || '', aliQr: t.aliQr || '',
         wxName: (($('psWxName') || {}).value || '').trim(), aliName: (($('psAliName') || {}).value || '').trim(),
+        link: (($('psLink') || {}).value || '').trim(),
         amount: +(($('psAmount') || {}).value || 0) || 0,
         note: (($('psNote') || {}).value || '').trim()
       };
