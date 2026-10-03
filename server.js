@@ -34,7 +34,7 @@ function json(res, code, obj) {
 function readBody(req) {
   return new Promise((resolve) => {
     let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
+    req.on('data', (c) => { raw += c; if (raw.length > 2.5e6) req.destroy(); });
     req.on('end', () => { try { resolve(JSON.parse(raw || '{}')); } catch (e) { resolve({}); } });
   });
 }
@@ -101,8 +101,73 @@ function maskSensitive(text) {
   return { text: s, flags: flags };
 }
 
+/* ---------- 支付收款信息：磁盘持久化（data/payinfo.json） ----------
+ * 收款二维码图片存 uploads/（返回可访问 URL），配置存 data/payinfo.json。
+ * 前端（后台填写弹窗 / 用户端收款弹窗）统一走 pay/save + pay/info 同步。 */
+const UPLOAD_DIR = path.join(ROOT, 'uploads');
+const DATA_DIR = path.join(ROOT, 'data');
+const PAY_FILE = path.join(DATA_DIR, 'payinfo.json');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const PAY_DEFAULT = { wxQr: '', aliQr: '', wxName: '', aliName: '', amount: 0, note: '', updatedAt: '' };
+function payRead() {
+  try { return Object.assign({}, PAY_DEFAULT, JSON.parse(fs.readFileSync(PAY_FILE, 'utf8'))); }
+  catch (e) { return Object.assign({}, PAY_DEFAULT); }
+}
+function payWrite(p) {
+  p.updatedAt = new Date().toISOString();
+  fs.writeFileSync(PAY_FILE, JSON.stringify(p, null, 2));
+  return p;
+}
+/* dataURL 落盘：校验格式/体积 → base64 解码 → uploads/ 下生成文件 → 返回可访问 URL */
+function payUpload(b) {
+  const kind = (b.kind === 'ali') ? 'ali' : 'wx';
+  const m = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dataUrl || ''));
+  if (!m) return { ok: false, msg: '仅支持 PNG/JPG/WebP 图片' };
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length < 100) return { ok: false, msg: '图片内容为空或已损坏' };
+  if (buf.length > 800 * 1024) return { ok: false, msg: '图片过大（上限 800KB），请压缩后重试' };
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const name = 'payqr-' + kind + '-' + Date.now() + '.' + ext;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+  /* 清理同名旧二维码（同一 kind 只保留最近 5 张，避免目录无限膨胀） */
+  try {
+    const olds = fs.readdirSync(UPLOAD_DIR).filter((f) => f.startsWith('payqr-' + kind + '-')).sort().reverse();
+    olds.slice(5).forEach((f) => { try { fs.unlinkSync(path.join(UPLOAD_DIR, f)); } catch (e) { /* noop */ } });
+  } catch (e) { /* noop */ }
+  return { ok: true, url: '/uploads/' + name, kind: kind, size: buf.length };
+}
+function paySanitize(b) {
+  const p = payRead();
+  const str = (v, max) => String(v == null ? '' : v).slice(0, max);
+  p.wxQr = /^\/?uploads\/[\w.-]+$/.test(str(b.wxQr, 200)) ? (b.wxQr[0] === '/' ? b.wxQr : '/' + b.wxQr) : str(b.wxQr, 200);
+  p.aliQr = /^\/?uploads\/[\w.-]+$/.test(str(b.aliQr, 200)) ? (b.aliQr[0] === '/' ? b.aliQr : '/' + b.aliQr) : str(b.aliQr, 200);
+  p.wxName = str(b.wxName, 40);
+  p.aliName = str(b.aliName, 40);
+  p.amount = Math.max(0, +b.amount || 0);
+  p.note = str(b.note, 200);
+  return p;
+}
+
 /* ---------- API 处理 ---------- */
 const apiHandlers = {
+  /* 支付收款信息：上传收款二维码（dataURL → uploads 文件 → 可访问 URL） */
+  'pay/upload': async (body, res) => {
+    const r = payUpload(body);
+    json(res, 200, r.ok ? Object.assign({ source: 'server' }, r) : Object.assign({ source: 'server' }, r));
+  },
+
+  /* 支付收款信息：保存（后台填写弹窗提交） */
+  'pay/save': async (body, res) => {
+    const p = payWrite(paySanitize(body));
+    json(res, 200, { ok: true, source: 'server', payInfo: p });
+  },
+
+  /* 支付收款信息：读取（用户端收款弹窗拉取最新配置） */
+  'pay/info': async (body, res) => {
+    json(res, 200, { ok: true, source: 'server', payInfo: payRead() });
+  },
+
   /* 门票调整：查询该沙龙最终应付价（前端展示与按钮金额由此驱动） */
   'ticket/quote': async (body, res) => {
     const r = ticketCalc(body);
@@ -257,7 +322,7 @@ const apiHandlers = {
 };
 
 /* ---------- 静态文件 ---------- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);

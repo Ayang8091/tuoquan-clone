@@ -54,7 +54,14 @@
         wecomQRText: 'TQ-WECOM-QR-17785059319',
         coopWechat: 'ledaoykj-coop',
         coopName: '乐道科技 · 商务合作',
-        hiddenTabs: []              // 首页入口开关：circle / bosses
+        hiddenTabs: [],             // 首页入口开关：circle / bosses
+        payInfo: {                  // 微信/支付宝收款信息（后台「收款设置」可改，服务端 pay/save 同步）
+          wxQr: '', aliQr: '',      // 收款二维码图片地址（/uploads/payqr-*.jpg）
+          wxName: '', aliName: '',  // 收款人名称
+          amount: 0,                // 默认收款金额（0=按订单金额）
+          note: '',                 // 订单说明（收款弹窗展示）
+          updatedAt: ''
+        }
       },
 
       /* ---------- 当前登录用户（微信登录态 · 本机） ---------- */

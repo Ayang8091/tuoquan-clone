@@ -899,6 +899,87 @@
         }).join('');
       }
       render(g1, 'cfgGrid1'); render(g2, 'cfgGrid2');
+      Admin.renderPayInfo();
+    },
+    /* 支付收款信息卡片（用户端收银台扫码支付的数据源） */
+    renderPayInfo: function () {
+      var p = S.get().config.payInfo || {};
+      var el = document.getElementById('payInfoCard');
+      if (!el) return;
+      var qr = function (u) { return u ? '<img src="' + esc(u) + '" style="width:64px;height:64px;object-fit:contain;border:1px solid #e5e6eb;border-radius:8px;background:#fff">' : '<span style="display:inline-block;width:64px;height:64px;border:1px dashed #e5e6eb;border-radius:8px;line-height:64px;text-align:center;color:#86909c;font-size:12px">未上传</span>'; };
+      el.innerHTML =
+        '<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">' +
+        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">微信收款码</div>' + qr(p.wxQr) + '</div>' +
+        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">支付宝收款码</div>' + qr(p.aliQr) + '</div>' +
+        '<div style="font-size:13px;color:#1d2129;line-height:2">收款人：微信 ' + esc(p.wxName || '—') + ' · 支付宝 ' + esc(p.aliName || '—') + '<br>' +
+        '默认金额：' + (p.amount ? '¥' + p.amount : '按订单金额') + '<br>订单说明：' + esc(p.note || '—') +
+        (p.updatedAt ? '<br><span style="font-size:12px;color:#86909c">更新于 ' + esc(p.updatedAt.slice(0, 16).replace('T', ' ')) + '</span>' : '') + '</div></div>';
+    },
+    /* 填写收款信息弹窗：上传收款二维码（/api/pay/upload 落盘返回可访问 URL）+ 金额/说明 */
+    openPayInfo: function () {
+      var p = S.get().config.payInfo || {};
+      window._payTemp = { wxQr: p.wxQr || '', aliQr: p.aliQr || '' };
+      var qrBox = function (kind, label) {
+        var u = window._payTemp[kind + 'Qr'];
+        return '<div style="flex:1;text-align:center"><div style="font-size:13px;margin-bottom:6px">' + label + '</div>' +
+          '<div id="pvPay' + kind + '" style="width:120px;height:120px;margin:0 auto 8px;border:1px dashed #e5e6eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;color:#86909c;font-size:12px">' + (u ? '<img src="' + esc(u) + '" style="max-width:100%;max-height:100%;object-fit:contain">' : '未上传') + '</div>' +
+          '<button class="btn sm" onclick="Admin.upPayQr(\'' + kind + '\')">📤 上传二维码</button></div>';
+      };
+      modal(
+        '<h3 style="margin-bottom:16px">填写收款信息（微信 / 支付宝）</h3>' +
+        '<div style="display:flex;gap:20px;margin-bottom:16px">' + qrBox('Wx', '微信收款码') + qrBox('Ali', '支付宝收款码') + '</div>' +
+        '<div class="f"><label>微信收款人</label><input id="mPayWxName" value="' + esc(p.wxName || '') + '" placeholder="微信昵称 / 收款人"></div>' +
+        '<div class="f"><label>支付宝收款人</label><input id="mPayAliName" value="' + esc(p.aliName || '') + '" placeholder="支付宝姓名 / 账号"></div>' +
+        '<div class="f"><label>默认收款金额（元）</label><input id="mPayAmount" type="number" min="0" value="' + (p.amount || '') + '" placeholder="留空或 0 = 按订单金额"></div>' +
+        '<div class="f"><label>订单说明</label><input id="mPayNote" value="' + esc(p.note || '') + '" placeholder="支付时向付款人展示，例：沙龙报名"></div>' +
+        '<div style="font-size:12px;color:#86909c;margin:4px 0 12px">二维码上传后由服务端保存（/api/pay/upload），返回可访问地址；保存后用户端收银台支付时展示扫码付款。</div>' +
+        '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.savePayInfo()">保存</button></div>');
+    },
+    upPayQr: function (kind) {
+      var key = kind === 'Wx' ? 'wxQr' : 'aliQr';
+      ImgUp.pick({ ratio: 0, max: 700, targetKB: 180 }, function (urls) {
+        if (!urls || !urls.length) return;
+        var url = urls[0];
+        window._payTemp[key] = url;
+        var pv = document.getElementById('pvPay' + kind);
+        if (pv) pv.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:100%;object-fit:contain">';
+        fetch('/api/pay/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind === 'Wx' ? 'wx' : 'ali', dataUrl: url }) })
+          .then(function (r) { return r.json(); })
+          .then(function (r) {
+            if (r && r.ok && r.url) {
+              window._payTemp[key] = r.url;
+              var pv2 = document.getElementById('pvPay' + kind);
+              if (pv2) pv2.innerHTML = '<img src="' + r.url + '" style="max-width:100%;max-height:100%;object-fit:contain">';
+              toast('二维码已上传到服务端');
+            } else toast((r && r.msg) ? r.msg : '上传失败，将随配置本地保存');
+          })
+          .catch(function () { toast('服务端不可达，将随配置本地保存'); });
+      });
+    },
+    savePayInfo: function () {
+      var t = window._payTemp || {};
+      var payload = {
+        wxQr: t.wxQr || '', aliQr: t.aliQr || '',
+        wxName: (document.getElementById('mPayWxName').value || '').trim(),
+        aliName: (document.getElementById('mPayAliName').value || '').trim(),
+        amount: +(document.getElementById('mPayAmount').value || 0) || 0,
+        note: (document.getElementById('mPayNote').value || '').trim()
+      };
+      fetch('/api/pay/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          var db = S.get();
+          if (r && r.ok && r.payInfo) { db.config.payInfo = r.payInfo; toast('收款信息已保存（服务端）'); }
+          else { payload.updatedAt = new Date().toISOString(); db.config.payInfo = payload; toast('服务端不可达，已保存在本机（云端同步）'); }
+          S.save(); closeModal(); Admin.renderPayInfo();
+        })
+        .catch(function () {
+          var db = S.get();
+          payload.updatedAt = new Date().toISOString();
+          db.config.payInfo = payload;
+          S.save(); closeModal(); Admin.renderPayInfo();
+          toast('服务端不可达，已保存在本机（云端同步）');
+        });
     },
     saveConfig: function () {
       var db = S.get();

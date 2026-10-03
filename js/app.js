@@ -484,6 +484,7 @@
       ['🤝', '我的引荐凭证', '', '#/refer-ticket', false],
       ['💰', '分销中心', isBoss ? '老板 · 亲自分销' : (u.distributeEnabled ? '已开通' : '可申请'), '#/distro', isBoss],
       ['🧾', '我的支付记录', '', '#/my-pay', false],
+      ['💳', '收款设置', '微信/支付宝收款码 · 金额 · 说明', 'paysetup', isBoss, isBoss],
       ['🏢', '老板工作台', isBoss ? '管理后台入口' : '', '#/boss-dash', isBoss, isBoss],
       ['🎓', '会员专属顾问', u.advisorAdded ? '已添加' : '开通会员后可加', '#/advisor', u.member && !u.advisorAdded],
       ['💼', '商务合作', '有资源 / 有预算 · 找乐道谈', '#/coop-apply', false],
@@ -812,7 +813,7 @@
         var st = s.refunded ? '已退款' : '已支付';
         return '<div class="wb-rev"><div class="ri">' + ic + '</div>' +
           '<div class="rt"><div class="rs">' + esc(s.title) + '</div>' +
-          '<div class="elapsed">' + esc(s.createdAt) + ' · ' + st + (s.kind === 'refer' ? ' · ' + (s.referred ? '已对接' : '等待对接') : '') + '</div></div>' +
+          '<div class="elapsed">' + esc(s.createdAt) + ' · ' + st + ' · ' + esc(s.payMethod || '微信支付') + (s.kind === 'refer' ? ' · ' + (s.referred ? '已对接' : '等待对接') : '') + '</div></div>' +
           '<div class="ra">' + (s.amount ? money(s.amount) : '免费') + '</div></div>';
       }).join('') : '<div class="wb-empty"><div class="e-big">🧾</div><div>暂无记录</div></div>') + '</div></div>';
   }
@@ -1351,12 +1352,68 @@
   }
   window.notify = notify;
 
+  /* ================= 微信/支付宝收款（配置读取 + 收款确认弹窗） ================= */
+  function payInfoOf(db) {
+    var p = ((db || S.get()).config || {}).payInfo || {};
+    return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxName: p.wxName || '', aliName: p.aliName || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
+  }
+  function hasPayQr(p) { return !!(p.wxQr || p.aliQr); }
+  /* 收款确认弹窗：展示商家收款二维码/金额/订单说明，付款人扫码后点「我已完成支付」回调落库。
+   * 未配置收款码时直接回调（保持原有模拟支付流程，行为完全兼容）。 */
+  function payCollect(opt, onDone) {
+    var p = payInfoOf();
+    if (!hasPayQr(p)) { onDone('微信支付'); return; }
+    var side = p.wxQr ? 'wx' : 'ali';
+    window._pcSide = side;
+    var html =
+      '<div class="sheet pay-sheet tall" id="collectSheet">' +
+      '<span class="close-x" onclick="UI.closeSheet()">✕</span>' +
+      '<h3>扫码支付</h3>' +
+      '<div class="pc-amount">' + money(opt.amount || 0) + '</div>' +
+      (opt.title ? '<div class="pc-title">' + esc(opt.title) + '</div>' : '') +
+      (p.note ? '<div class="pc-note">📋 ' + esc(p.note) + '</div>' : '') +
+      ((p.wxQr && p.aliQr)
+        ? '<div class="pc-tabs"><span class="chip ' + (side === 'wx' ? 'on' : '') + '" id="pcTabWx" onclick="User.pcSide(\'wx\')">微信支付</span>' +
+          '<span class="chip ' + (side === 'ali' ? 'on' : '') + '" id="pcTabAli" onclick="User.pcSide(\'ali\')">支付宝</span></div>'
+        : '') +
+      '<div class="pc-qr"><img id="pcQrImg" src="' + (side === 'wx' ? p.wxQr : p.aliQr) + '" alt="收款二维码">' +
+      '<div class="pc-qrname" id="pcQrName">' + esc(side === 'wx' ? (p.wxName || '微信收款') : (p.aliName || '支付宝收款')) + '</div>' +
+      '<div class="pc-tip" id="pcTip">长按或截图 → 打开' + (side === 'wx' ? '微信' : '支付宝') + '扫一扫付款</div></div>' +
+      '<button class="btn-wechat" style="width:100%;margin-top:10px" id="pcDone">我已完成支付</button>' +
+      '</div>';
+    var old = document.getElementById('collectSheet');
+    if (old) old.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    UI.openSheet('collectSheet');
+    document.getElementById('pcDone').onclick = function () {
+      var m = window._pcSide === 'ali' ? '支付宝' : '微信支付';
+      UI.closeSheet();
+      onDone(m);
+    };
+  }
+
   /* ================= 用户操作 ================= */
   var User = window.User = {
     menuClick: function (target) {
       if (target === 'service') { UI.toast('客服微信：' + S.get().config.serviceWechat + '（已复制）'); UI.copy(S.get().config.serviceWechat); return; }
       if (target === 'wxprofile') { User.fetchWxProfile(); return; }
+      if (target === 'paysetup') { User.openPaySetup(); return; }
       UI.go(target || '#/me');
+    },
+    /* 收款弹窗切换 微信/支付宝 */
+    pcSide: function (s) {
+      var p = payInfoOf();
+      window._pcSide = s;
+      var img = document.getElementById('pcQrImg');
+      if (img) img.src = s === 'wx' ? p.wxQr : p.aliQr;
+      var nm = document.getElementById('pcQrName');
+      if (nm) nm.textContent = s === 'wx' ? (p.wxName || '微信收款') : (p.aliName || '支付宝收款');
+      var tp = document.getElementById('pcTip');
+      if (tp) tp.textContent = '长按或截图 → 打开' + (s === 'wx' ? '微信' : '支付宝') + '扫一扫付款';
+      var tw = document.getElementById('pcTabWx');
+      if (tw) tw.className = 'chip' + (s === 'wx' ? ' on' : '');
+      var ta = document.getElementById('pcTabAli');
+      if (ta) ta.className = 'chip' + (s === 'ali' ? ' on' : '');
     },
     fetchWxProfile: function () {
       var p = Auth.fetchProfile();
@@ -1375,12 +1432,22 @@
       var priceEl = document.getElementById('payPrice');
       if (priceEl) priceEl.textContent = money(c.memberPrice) + ' / ' + c.memberDays + ' 天';
     },
-    confirmVipPay: function () {
+    /* 会员收银弹窗「确认支付」入口（修复原 payMember 缺失导致的点击报错）：
+     * 配置了收款码 → 打开扫码收款弹窗；未配置 → 保持原有模拟支付 */
+    payMember: function () {
+      var db = S.get(), c = db.config;
+      payCollect({ amount: c.memberPrice, title: '开通年度老板会员' }, function (m) {
+        UI.closeSheet();
+        User.confirmVipPay(m);
+      });
+    },
+    confirmVipPay: function (method) {
       var db = S.get(), c = db.config, u = db.user;
       var expire = new Date(Date.now() + (c.memberDays || 365) * 86400000).toISOString().slice(0, 10);
       var sg = {
         id: S.uid('sg'), kind: 'member', type: 'normal', title: 'AI出海年度老板会员',
         name: u.nickname, phone: u.phone, amount: c.memberPrice, paid: true, paidAt: nowStr(),
+        payMethod: method || '微信支付',
         refunded: false, createdAt: nowStr(), code: 'TQ-V-' + String(Date.now()).slice(-4),
         memberDays: c.memberDays, dist: u.inviteCode, distName: u.nickname,
         formData: {}
@@ -1426,11 +1493,11 @@
       var base = (price == null) ? (u.member ? (ev.mprice || 0) : (ev.price || 0)) : price;
 
       /* 下单落库（金额与凭证号以后端确认为准，后端不可达时回退前端计算） */
-      var submit = function (finalPrice, code) {
+      var submit = function (finalPrice, code, method) {
         var sg = {
           id: S.uid('sg'), kind: 'salon', type: u.member ? 'vip' : 'normal', evId: evId,
           title: ev.title || '沙龙报名', name: name.trim(), phone: phoneNo, amount: finalPrice,
-          paid: true, paidAt: nowStr(), refunded: false, createdAt: nowStr(),
+          paid: true, paidAt: nowStr(), payMethod: method || '微信支付', refunded: false, createdAt: nowStr(),
           code: code || ('TQ-S-' + String(Date.now()).slice(-4)), dist: u.inviteCode, distName: u.nickname,
           formData: { '姓名': name.trim(), '手机号': phoneNo, '希望通过沙龙获得什么': want }
         };
@@ -1453,14 +1520,18 @@
       var bought = (db.signups || []).filter(function (x) {
         return x.kind === 'salon' && x.evId === evId && x.phone === phoneNo && x.paid && !x.refunded;
       }).length;
+      /* 收款弹窗：配置了收款二维码时先展示扫码支付，确认后再落库 */
+      var gate = function (fp, code) {
+        payCollect({ amount: fp, title: '沙龙报名 · ' + (ev.title || '') }, function (m) { submit(fp, code, m); });
+      };
       apiPost('/ticket/confirm', {
         salonId: evId, title: ev.title || '', price: ev.price || 0, mprice: ev.mprice || 0,
         isMember: !!u.member, ticketAdjust: ev.ticketAdjust || null, boughtCount: bought,
         phone: phoneNo, name: name.trim(), qty: 1, today: S.today()
       }, function (res) {
         if (res && res.ok === false) { UI.toast(res.msg || '报名校验未通过'); return; }
-        if (res && res.ok) return submit(res.finalPrice, res.code);
-        submit(base, null); /* 纯静态部署/接口不可达：沿用前端价 */
+        if (res && res.ok) return gate(res.finalPrice, res.code);
+        gate(base, null); /* 纯静态部署/接口不可达：沿用前端价 */
       });
     },
 
@@ -1473,14 +1544,22 @@
       var need = ($('rfNeed') || {}).value || '';
       if (!name.trim()) { UI.toast('请填写姓名'); return; }
       if (!need.trim()) { UI.toast('请填写你的引荐诉求'); return; }
+      /* 收款弹窗：配置了收款二维码时先展示扫码支付，确认后再落库 */
+      payCollect({ amount: amount, title: '老板引荐 · ' + (b.name || '') }, function (method) {
+        User.referSubmit(bossId, amount, name.trim(), wx, need.trim(), method);
+      });
+    },
+    referSubmit: function (bossId, amount, name, wx, need, method) {
+      var db = S.get(), u = db.user;
+      var b = db.bosses.filter(function (x) { return x.id === bossId; })[0] || {};
       var sg = {
         id: S.uid('sg'), kind: 'refer', type: u.member ? 'vip' : 'normal', bossId: bossId, bossName: b.name,
-        title: '老板引荐 · ' + b.name, name: name.trim(), phone: u.phone, amount: amount,
-        paid: true, paidAt: nowStr(), refunded: false, createdAt: nowStr(),
+        title: '老板引荐 · ' + b.name, name: name, phone: u.phone, amount: amount,
+        paid: true, paidAt: nowStr(), payMethod: method || '微信支付', refunded: false, createdAt: nowStr(),
         code: 'TQ-R-' + String(Date.now()).slice(-4), dist: u.inviteCode, distName: u.nickname,
-        referred: false, dock: 'pending', demand: need.trim(),
+        referred: false, dock: 'pending', demand: need,
         deadline: new Date(Date.now() + 24 * 3600000).toISOString(),
-        formData: { '姓名': name.trim(), '微信号': wx, '引荐诉求': need.trim() }
+        formData: { '姓名': name, '微信号': wx, '引荐诉求': need }
       };
       db.signups.unshift(sg);
       db.referrals.unshift({
@@ -1503,6 +1582,77 @@
       notify('boss', '🤝', '新引荐单 · ' + b.name, sg.name + ' 引荐 ' + b.name + '（' + (amount ? money(amount) : '会员免费') + '）');
       UI.toast('引荐提交成功 · 引荐顾问将在 24 小时内为你对接');
       setTimeout(function () { UI.go('#/refer-ticket/' + sg.id); }, 800);
+    },
+
+    /* ---------- 收款设置（微信/支付宝收款信息填写弹窗，主理人入口） ---------- */
+    openPaySetup: function () {
+      var p = payInfoOf();
+      var html =
+        '<div class="sheet pay-sheet tall" id="paySetupSheet">' +
+        '<span class="close-x" onclick="UI.closeSheet()">✕</span>' +
+        '<h3>收款设置（微信 / 支付宝）</h3>' +
+        '<div class="ps-grid">' +
+        '<div class="ps-cell"><div class="f-label" style="text-align:center">微信收款码</div>' +
+        '<div class="ps-qr" id="psQrWx">' + (p.wxQr ? '<img src="' + p.wxQr + '">' : '<span>未上传</span>') + '</div>' +
+        '<button class="btn-ghost" style="width:100%;font-size:12px;padding:7px 0" onclick="User.upPayQr(\'wx\')">📤 上传微信收款码</button></div>' +
+        '<div class="ps-cell"><div class="f-label" style="text-align:center">支付宝收款码</div>' +
+        '<div class="ps-qr" id="psQrAli">' + (p.aliQr ? '<img src="' + p.aliQr + '">' : '<span>未上传</span>') + '</div>' +
+        '<button class="btn-ghost" style="width:100%;font-size:12px;padding:7px 0" onclick="User.upPayQr(\'ali\')">📤 上传支付宝收款码</button></div>' +
+        '</div>' +
+        '<div class="f-label">微信收款人</div><input class="f-input" id="psWxName" value="' + esc(p.wxName) + '" placeholder="微信昵称 / 收款人">' +
+        '<div class="f-label">支付宝收款人</div><input class="f-input" id="psAliName" value="' + esc(p.aliName) + '" placeholder="支付宝姓名 / 账号">' +
+        '<div class="f-label">默认收款金额（元，留空/0 = 按订单金额）</div><input class="f-input" id="psAmount" type="number" min="0" value="' + (p.amount || '') + '">' +
+        '<div class="f-label">订单说明（支付时向付款人展示）</div><input class="f-input" id="psNote" value="' + esc(p.note) + '" placeholder="例：沙龙报名 / 老板引荐服务费">' +
+        '<button class="btn-wechat" style="width:100%;margin-top:14px" onclick="User.savePaySetup()">保存收款信息</button>' +
+        '<div style="text-align:center;font-size:11px;color:var(--txt3);margin-top:8px">保存后用户端收银台支付时展示收款二维码、金额与订单说明</div>' +
+        '</div>';
+      var old = document.getElementById('paySetupSheet');
+      if (old) old.remove();
+      document.body.insertAdjacentHTML('beforeend', html);
+      UI.openSheet('paySetupSheet');
+      window._psTemp = { wxQr: p.wxQr, aliQr: p.aliQr };
+    },
+    /* 上传收款二维码：ImgUp 统一管线压缩 → /api/pay/upload 落盘 → 返回可访问 URL */
+    upPayQr: function (kind) {
+      ImgUp.pick({ ratio: 0, max: 700, targetKB: 180 }, function (urls) {
+        if (!urls || !urls.length) return;
+        var url = urls[0];
+        window._psTemp[kind + 'Qr'] = url;
+        var el = document.getElementById(kind === 'wx' ? 'psQrWx' : 'psQrAli');
+        if (el) el.innerHTML = '<img src="' + url + '">';
+        apiPost('/pay/upload', { kind: kind, dataUrl: url }, function (r) {
+          if (r && r.ok && r.url) {
+            window._psTemp[kind + 'Qr'] = r.url;
+            var el2 = document.getElementById(kind === 'wx' ? 'psQrWx' : 'psQrAli');
+            if (el2) el2.innerHTML = '<img src="' + r.url + '">';
+            UI.toast('收款码已上传');
+          } else {
+            UI.toast((r && r.msg) ? r.msg : '服务端上传失败，将随配置本地保存');
+          }
+        });
+      });
+    },
+    /* 保存收款信息：服务端 pay/save 持久化 + 同步本机/云端 config.payInfo */
+    savePaySetup: function () {
+      var t = window._psTemp || {};
+      var payload = {
+        wxQr: t.wxQr || '', aliQr: t.aliQr || '',
+        wxName: (($('psWxName') || {}).value || '').trim(), aliName: (($('psAliName') || {}).value || '').trim(),
+        amount: +(($('psAmount') || {}).value || 0) || 0,
+        note: (($('psNote') || {}).value || '').trim()
+      };
+      apiPost('/pay/save', payload, function (r) {
+        var db = S.get();
+        if (r && r.ok && r.payInfo) {
+          db.config.payInfo = r.payInfo;
+          UI.toast('收款信息已保存');
+        } else {
+          payload.updatedAt = nowStr();
+          db.config.payInfo = payload;
+          UI.toast('服务端不可达，已保存在本机（联网后自动同步）');
+        }
+        S.save(); UI.closeSheet(); render();
+      });
     },
 
     /* ---------- 会员资料 ---------- */
