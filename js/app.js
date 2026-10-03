@@ -159,12 +159,13 @@
         return '<i class="' + (i === 0 ? 'on' : '') + '" onclick="event.stopPropagation();HUI.bnGo(' + i + ')"></i>';
       }).join('') + '</div></div>' +
 
-      (open.length ? open.map(salonCard).join('') :
-        '<div class="empty-salon"><div class="ico">🗓️</div><p>暂无可报名活动 · 敬请期待<br>主理人正在筹备下一场沙龙</p></div>') +
+      (open.length ? '<div class="salon-scroll">' + open.map(salonCard).join('') + '</div>' :
+        '<div class="salon-scroll"><div class="empty-salon"><div class="ico">🗓️</div><p>暂无可报名活动 · 敬请期待<br>主理人正在筹备下一场沙龙</p></div></div>') +
 
       vipFabHtml() + tabbar('salon');
 
     phone.innerHTML = html;
+    phone.classList.add('salon-fix');
     startCarousel(slides.length);
   }
 
@@ -1169,6 +1170,7 @@
     if (!Auth.isLoggedIn() && h !== 'login') h = 'login';
     var y = window.scrollY;
     var name = h.split('/')[0];
+    if (phone.classList) phone.classList.remove('salon-fix');
 
     /* 子模块优先（老板工作台 / 分销中心） */
     if (name.indexOf('boss-') === 0 && window.Workbench) { window.Workbench.route(h); }
