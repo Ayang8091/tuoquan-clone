@@ -71,6 +71,9 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
   padding: 0 0 10px;
 }
 
+/* 门票调整信息条（沙龙卡片内，跟随页面卡片风格） */
+.tk-flag { margin: 7px 0 3px; font-size: 11px; line-height: 1.5; color: var(--warn); background: #fff6ee; border: 1px solid #fbdcc0; border-radius: 7px; padding: 4px 9px; display: inline-block; }
+
 /* ---------- 通用页面头 ---------- */
 .pagebar {
   position: sticky; top: 0; z-index: 50;

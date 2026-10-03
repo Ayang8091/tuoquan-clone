@@ -218,6 +218,29 @@
     phone.innerHTML = html;
     phone.classList.add('salon-fix');
     startCarousel(slides.length);
+
+    /* 门票调整：后端 /api/ticket/quote 校准卡片价与信息条（本地结果已即时渲染；
+       接口异常时保留本地值，不影响页面；元素已随切页销毁则静默跳过） */
+    open.forEach(function (s) {
+      ticketQuote(s, db.user.member, function (q2, fromServer) {
+        if (!fromServer || !q2) return;
+        var p = document.getElementById('tkp-' + s.id);
+        if (!p) return;
+        p.textContent = '门票 ' + (q2.finalPrice ? money(q2.finalPrice) : '免费');
+        var t = tkFlagText(q2);
+        var f = document.getElementById('tkflag-' + s.id);
+        if (f && t) { f.textContent = t; return; }
+        if (f && !t) { f.remove(); return; }
+        if (!f && t) {
+          var inner = p.closest('.boss-inner');
+          if (inner) {
+            var d = document.createElement('div');
+            d.className = 'tk-flag'; d.id = 'tkflag-' + s.id; d.textContent = t;
+            inner.insertBefore(d, inner.querySelector('.b-foot'));
+          }
+        }
+      });
+    });
   }
 
   function bnLink(b) {
@@ -225,19 +248,31 @@
     return ({ vip: '#/vip', bosses: '#/boss', mypay: '#/my-pay', distro: '#/distro' })[b.linkType] || '#/boss';
   }
 
+  /* 门票调整信息条文本：由 quote 结果（本地或后端）生成，active 才显示 */
+  function tkFlagText(q) {
+    if (!q || !q.active) return '';
+    var bits = [];
+    if (q.hint) bits.push(String(q.hint));
+    if (q.originPrice && q.originPrice !== q.finalPrice) bits.push('原价 ¥' + q.originPrice);
+    if (q.limit) bits.push('限购 ' + q.limit + ' 张/人' + (q.remaining >= 0 && q.remaining < q.limit ? ' · 可再购 ' + q.remaining + ' 张' : ''));
+    return bits.join(' · ');
+  }
+
   function salonCard(s) {
     var seat = Math.max(0, (s.seats || 0) - (s.joined || 0));
     var hot = s.seats ? (s.joined / s.seats) >= 0.8 : false;
     var statusTxt = !s.seats ? '报名中' : (seat <= 0 ? '已满员' : (hot ? '仅剩 ' + seat + ' 人' : '报名中 · 限 ' + s.seats + ' 人'));
-    /* 门票调整：卡片票价与用户端展示同步（生效期内显示调整后价格） */
+    /* 门票调整：卡片票价与展示同步（生效期内显示调整后价格 + 调整信息条） */
     var q = ticketLocal(s, (S.get().user || {}).member, S.get());
+    var ft = tkFlagText(q);
     return '<div class="boss-list"><div class="boss-card" onclick="UI.go(\'#/salon-detail/' + s.id + '\')">' +
       '<div class="boss-cover" style="' + coverStyle(s.banner) + ';height:150px">' +
       '<span style="position:absolute;left:14px;bottom:12px;color:#fff;font-weight:700">' + esc(s.title) + '</span>' +
       '<span class="s-status ' + (hot ? 'hot' : '') + '" style="position:absolute;right:12px;top:12px">' + statusTxt + '</span></div>' +
       '<div class="boss-inner"><div class="b-desc" style="margin:0">' + esc(s.desc) + '</div>' +
+      (ft ? '<div class="tk-flag" id="tkflag-' + s.id + '">' + esc(ft) + '</div>' : '') +
       '<div class="b-foot"><span class="matched">🗓️ ' + s.date + ' ' + (s.time || '') + ' · ' + s.city + '</span>' +
-      '<span class="price" style="color:var(--blue)">门票 ' + (q.finalPrice ? money(q.finalPrice) : '免费') + '</span></div></div></div></div>';
+      '<span class="price" id="tkp-' + s.id + '" style="color:var(--blue)">门票 ' + (q.finalPrice ? money(q.finalPrice) : '免费') + '</span></div></div></div></div>';
   }
 
   function startCarousel(n) {
