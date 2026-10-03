@@ -332,10 +332,14 @@
     renderSalons: function () {
       var db = S.get();
       document.getElementById('salonTable').innerHTML =
-        '<tr><th>沙龙</th><th>日期</th><th>地点</th><th>名额</th><th>已报名</th><th>状态</th><th>操作</th></tr>' +
+        '<tr><th>沙龙</th><th>日期</th><th>地点</th><th>名额</th><th>已报名</th><th>门票</th><th>状态</th><th>操作</th></tr>' +
         db.salons.map(function (s) {
+          var tk = s.ticketAdjust || {};
+          var tkCell = tk.enabled
+            ? '<span class="tagx gold">调整中</span> ' + (tk.originPrice || 0) + ' → ' + (tk.adjustPrice || 0) + ' 元'
+            : '<span class="tagx gray">未启用</span>';
           return '<tr><td><b>' + esc(s.title) + '</b></td><td>' + s.date + '</td><td>' + esc(s.city + ' · ' + s.place) + '</td>' +
-            '<td>' + s.seats + '</td><td>' + s.joined + '</td><td>' + statusTag(s.status) + '</td>' +
+            '<td>' + s.seats + '</td><td>' + s.joined + '</td><td>' + tkCell + '</td><td>' + statusTag(s.status) + '</td>' +
             '<td><button class="btn sm" onclick="Admin.editSalon(\'' + s.id + '\')">编辑</button> ' +
             (s.status !== '已结束' ? '<button class="btn sm warn" onclick="Admin.cycleSalon(\'' + s.id + '\')">切状态</button> ' : '') +
             '<button class="btn sm danger" onclick="Admin.delSalon(\'' + s.id + '\')">删除</button></td></tr>';
@@ -344,6 +348,9 @@
     editSalon: function (id) {
       var db = S.get();
       var s = db.salons.find(function (x) { return x.id === id; }) || { title: '', date: S.today(), city: '深圳', place: '', seats: 60, status: '筹备中', desc: '' };
+      var tk = s.ticketAdjust || {};
+      var tkOn = tk.enabled ? '1' : '0';
+      var tkType = tk.ticketType || (s.price ? 'paid' : 'free');
       modal('<h3>' + (id ? '编辑沙龙' : '新增沙龙') + '</h3>' +
         '<div class="f"><label>标题</label><input id="mTitle" value="' + esc(s.title) + '"></div>' +
         '<div class="mrow">' +
@@ -360,6 +367,24 @@
         '<div class="f"><label>现场照片（可多选，自动压缩适配尺寸）</label>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pvPhotos"></div>' +
         '<button class="btn sm" onclick="Admin.upSalonPhotos()" style="margin-top:8px">📤 上传现场照片</button></div>' +
+
+        /* ---------- 门票调整（仅后台配置，不影响用户端展示） ---------- */
+        '<div class="tk-sec">' +
+        '<div class="tk-hd">🎫 门票调整</div>' +
+        '<div class="tk-tip">在此配置门票相关策略，用于后台记录与调整；当前用户端门票展示保持不变。</div>' +
+        '<div class="mrow">' +
+        '<div class="f"><label>调整状态</label><select id="tkOn"><option value="1"' + (tkOn === '1' ? ' selected' : '') + '>启用</option><option value="0"' + (tkOn === '0' ? ' selected' : '') + '>停用</option></select></div>' +
+        '<div class="f"><label>门票类型</label><select id="tkType"><option value="paid"' + (tkType === 'paid' ? ' selected' : '') + '>收费</option><option value="free"' + (tkType === 'free' ? ' selected' : '') + '>免费</option></select></div>' +
+        '<div class="f"><label>门票原价（元）</label><input id="tkOrigin" type="number" min="0" value="' + (tk.originPrice != null ? tk.originPrice : (s.price || 0)) + '"></div>' +
+        '<div class="f"><label>调整后价格（元）</label><input id="tkPrice" type="number" min="0" value="' + (tk.adjustPrice != null ? tk.adjustPrice : (s.price || 0)) + '"></div>' +
+        '<div class="f"><label>生效开始</label><input id="tkFrom" type="date" value="' + (tk.from || '') + '"></div>' +
+        '<div class="f"><label>生效结束</label><input id="tkTo" type="date" value="' + (tk.to || '') + '"></div>' +
+        '<div class="f"><label>每人限购（张，0=不限）</label><input id="tkLimit" type="number" min="0" value="' + (tk.limit != null ? tk.limit : 0) + '"></div>' +
+        '<div class="f"><label>调整幅度提示</label><input id="tkHint" value="' + esc(tk.hint || '') + '" placeholder="例：早鸟票立减 50 元"></div>' +
+        '</div>' +
+        '<div class="f"><label>调整说明</label><textarea id="tkNote">' + esc(tk.note || '') + '</textarea></div>' +
+        '</div>' +
+
         '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveSalon(\'' + (id || '') + '\')">保存</button></div>');
       window._editTemp = { photos: (s.photos || []).slice() };
       Admin.renderPhotoPv();
@@ -382,7 +407,19 @@
         sharePoints: ((document.getElementById('mPoints') || {}).value || '').split('\n').filter(function (x) { return x.trim(); }),
         audience: (document.getElementById('mAudience') || {}).value || '',
         notice: (document.getElementById('mNotice') || {}).value || '',
-        photos: window._editTemp.photos || []
+        photos: window._editTemp.photos || [],
+        /* 门票调整（后台独立配置，不参与用户端渲染） */
+        ticketAdjust: {
+          enabled: (document.getElementById('tkOn') || {}).value === '1',
+          ticketType: (document.getElementById('tkType') || {}).value || 'paid',
+          originPrice: +((document.getElementById('tkOrigin') || {}).value || 0),
+          adjustPrice: +((document.getElementById('tkPrice') || {}).value || 0),
+          from: (document.getElementById('tkFrom') || {}).value || '',
+          to: (document.getElementById('tkTo') || {}).value || '',
+          limit: +((document.getElementById('tkLimit') || {}).value || 0),
+          hint: (document.getElementById('tkHint') || {}).value || '',
+          note: (document.getElementById('tkNote') || {}).value || ''
+        }
       };
       if (!data.title) { toast('请填写标题'); return; }
       if (id) { Object.assign(db.salons.find(function (x) { return x.id === id; }), data); }
