@@ -19,7 +19,10 @@
   function closeModal() { document.getElementById('modalMask').style.display = 'none'; }
   document.getElementById('modalMask').onclick = function (e) { if (e.target === this) closeModal(); };
 
-  var TITLES = { dashboard: '数据看板', bosses: '老板资源管理', salons: '沙龙活动管理', orders: '订单管理', users: '用户管理', distribute: '分销与佣金', leads: '合作线索', banners: '首页运营位', notices: '公告管理', config: '系统配置' };
+  var TITLES = { dashboard: '数据看板', bosses: '老板资源管理', salons: '沙龙活动管理', orders: '订单管理', users: '用户管理', distribute: '分销与佣金', leads: '合作线索', posts: '圈子动态管理', banners: '首页运营位', notices: '公告管理', config: '系统配置' };
+  /* 圈子动态：分类与状态字典（与用户端 app.js CCL_CATS / 我的动态 ST 保持一致） */
+  var CCL_CATS = { res: '我有资源', need: '我要找资源', coop: '合作招募', idea: '创业随想' };
+  var POST_ST = { pending: ['待审核', 'orange'], on: ['已发布', 'green'], off: ['已下架', 'gray'], rejected: ['已驳回', 'red'] };
   var LINK_TYPES = { vip: '会员页', bosses: '老板资源', salon: '指定沙龙', url: '外部链接', none: '不跳转' };
 
   function statusTag(st) {
@@ -80,6 +83,7 @@
       Admin.renderUsers();
       Admin.renderDistribute();
       Admin.renderLeads();
+      Admin.renderPosts();
       Admin.renderBanners();
       Admin.renderNotices();
       Admin.renderConfig();
@@ -99,7 +103,8 @@
         ['年度会员', memberCnt + ' 人', '+1', 'up'],
         ['引荐单', refCnt + ' 单', '+2', 'up'],
         ['待结算佣金（元）', pendingCm, '—', ''],
-        ['合作线索', db.coopLeads.length + ' 条', '+1', 'up']
+        ['合作线索', db.coopLeads.length + ' 条', '+1', 'up'],
+        ['待审动态', (db.posts || []).filter(function (p) { return (p.status || 'on') === 'pending'; }).length + ' 条', '—', '']
       ];
       document.getElementById('statGrid').innerHTML = stats.map(function (s) {
         return '<div class="stat-card"><div class="k">' + s[0] + '</div><div class="v">' + s[1] + '</div><div class="d ' + s[3] + '">' + s[2] + '</div></div>';
@@ -591,6 +596,96 @@
       var db = S.get();
       db.coopLeads.find(function (l) { return l.id === id; }).status = '已合作';
       S.save(); Admin.renderLeads(); toast('已标记为已合作');
+    },
+
+    /* ---------- 圈子动态管理（对应前端圈子页/我的动态/动态详情） ---------- */
+    renderPosts: function () {
+      var db = S.get();
+      var stf = (document.getElementById('postStatus') || {}).value || '';
+      /* 待审核排最前，其余按状态优先级 + 时间倒序 */
+      var PRIORITY = { pending: 0, on: 1, off: 2, rejected: 3 };
+      var list = (db.posts || []).slice().sort(function (a, b) {
+        return (PRIORITY[a.status || 'on'] - PRIORITY[b.status || 'on']) ||
+          String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      }).filter(function (p) { return !stf || (p.status || 'on') === stf; });
+      document.getElementById('postTable').innerHTML =
+        '<tr><th>作者</th><th>分类</th><th>内容 / 配图 / 视频</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
+        (list.length ? list.map(function (p) {
+          var a = p.author || {};
+          var st = POST_ST[p.status || 'on'] || POST_ST.on;
+          var key = p.status || 'on';
+          var ops = '';
+          if (key === 'pending') ops += '<button class="btn sm primary" onclick="Admin.modPost(\'' + p.id + '\',\'on\')">✓ 通过</button> ' +
+            '<button class="btn sm warn" onclick="Admin.modPost(\'' + p.id + '\',\'rejected\')">✕ 驳回</button> ';
+          if (key === 'on') ops += '<button class="btn sm" onclick="Admin.togglePostPin(\'' + p.id + '\')">' + (p.pinned ? '取消置顶' : '置顶') + '</button> ' +
+            '<button class="btn sm warn" onclick="Admin.modPost(\'' + p.id + '\',\'off\')">下架</button> ';
+          if (key === 'off' || key === 'rejected') ops += '<button class="btn sm primary" onclick="Admin.modPost(\'' + p.id + '\',\'on\')">重新上架</button> ';
+          ops += '<button class="btn sm" onclick="Admin.editPost(\'' + p.id + '\')">编辑</button> ' +
+            '<button class="btn sm danger" onclick="Admin.delPost(\'' + p.id + '\')">删除</button>';
+          return '<tr><td><b>' + esc(a.nickname || '会员') + '</b><br><span style="font-size:11px;color:#86909c">' +
+            esc(a.company || '') + (a.industry ? ' · ' + esc(a.industry) : '') + '</span></td>' +
+            '<td><span class="tagx blue">' + (CCL_CATS[p.cat] || p.cat || '—') + '</span>' +
+            (p.pinned ? '<br><span class="tagx gold">📌 置顶</span>' : '') + '</td>' +
+            '<td style="max-width:300px;font-size:12px;color:#4e5969">' +
+            esc(String(p.content || '').slice(0, 80)) + (String(p.content || '').length > 80 ? '…' : '') +
+            '<br><span style="font-size:11px;color:#86909c">配图 ' + (p.images || []).length + ' 张' +
+            (p.videoUrl ? ' · 🎬 探访视频' : '') + '</span>' +
+            (key === 'rejected' && p.rejectReason ? '<br><span style="font-size:11px;color:#f53f3f">驳回原因：' + esc(p.rejectReason) + '</span>' : '') + '</td>' +
+            '<td><span class="tagx ' + st[1] + '">' + st[0] + '</span></td>' +
+            '<td style="font-size:12px">' + esc(p.createdAt || '') + '</td>' +
+            '<td style="white-space:nowrap">' + ops + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:#86909c;padding:18px">暂无动态</td></tr>');
+    },
+    /* 审核：on=通过并发布 / off=下架 / rejected=驳回（需填原因，用户端「我的动态」展示） */
+    modPost: function (id, st) {
+      var db = S.get();
+      var p = db.posts.find(function (x) { return x.id === id; });
+      if (!p) return;
+      if (st === 'rejected') {
+        var reason = prompt('请填写驳回原因（用户端「我的动态」会展示）：', '内容不符合《圈子发布规范》');
+        if (reason == null) return;
+        p.status = 'rejected';
+        p.rejectReason = String(reason).trim() || '内容不符合《圈子发布规范》';
+      } else {
+        p.status = st;
+        if (st === 'on') p.rejectReason = '';
+      }
+      S.save(); Admin.renderPosts();
+      toast('动态已' + ({ on: '通过并发布', off: '下架', rejected: '驳回' }[st] || '更新'));
+    },
+    togglePostPin: function (id) {
+      var db = S.get();
+      var p = db.posts.find(function (x) { return x.id === id; });
+      if (!p) return;
+      p.pinned = !p.pinned;
+      S.save(); Admin.renderPosts();
+      toast(p.pinned ? '已置顶（用户端列表顶部展示）' : '已取消置顶');
+    },
+    /* 编辑动态：内容 + 探访视频链接（用户端卡片「探访视频」入口由 videoUrl 驱动） */
+    editPost: function (id) {
+      var db = S.get();
+      var p = db.posts.find(function (x) { return x.id === id; });
+      if (!p) return;
+      modal('<h3>编辑动态</h3>' +
+        '<div class="f"><label>内容</label><textarea id="mpContent" style="min-height:110px">' + esc(p.content || '') + '</textarea></div>' +
+        '<div class="f"><label>探访视频链接（用户端卡片展示「探访视频 · 点开看看这家公司」）</label>' +
+        '<input id="mpVideo" value="' + esc(p.videoUrl || '') + '" placeholder="https://channels.weixin.qq.com/..."></div>' +
+        '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button>' +
+        '<button class="btn primary" onclick="Admin.savePost(\'' + p.id + '\')">保存</button></div>');
+    },
+    savePost: function (id) {
+      var db = S.get();
+      var p = db.posts.find(function (x) { return x.id === id; });
+      if (!p) return;
+      p.content = document.getElementById('mpContent').value.trim();
+      p.videoUrl = document.getElementById('mpVideo').value.trim();
+      S.save(); closeModal(); Admin.renderPosts(); toast('已保存，用户端实时生效');
+    },
+    delPost: function (id) {
+      if (!confirm('确定删除该动态？')) return;
+      var db = S.get();
+      db.posts = db.posts.filter(function (x) { return x.id !== id; });
+      S.save(); Admin.renderPosts(); toast('已删除');
     },
 
     /* ---------- 首页运营位 ---------- */

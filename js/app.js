@@ -161,6 +161,17 @@
     } catch (e) { cb(null); }
   }
 
+  /* 圈子发布：敏感信息打码（与后端 server.js maskSensitive 同一套规则，接口不可达时本地兜底） */
+  function cclMask(text) {
+    var s = String(text || '');
+    var flags = [];
+    if (/1[3-9]\d{9}/.test(s)) { flags.push('phone'); s = s.replace(/1[3-9]\d{9}/g, '［手机号已隐藏］'); }
+    if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(s)) { flags.push('email'); s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '［邮箱已隐藏］'); }
+    if (/(?:QQ|qq|ＱＱ)[：:\s]*\d{5,12}/.test(s)) { flags.push('qq'); s = s.replace(/(?:QQ|qq|ＱＱ)[：:\s]*\d{5,12}/g, '［QQ已隐藏］'); }
+    if (/(?:微信号|微信|加v|加V|加VX|加vx|wx|WX|vx|VX)[：:\s]*[A-Za-z][A-Za-z0-9_-]{5,19}/.test(s)) { flags.push('wechat'); s = s.replace(/(?:微信号|微信|加v|加V|加VX|加vx|wx|WX|vx|VX)[：:\s]*[A-Za-z][A-Za-z0-9_-]{5,19}/g, '［微信号已隐藏］'); }
+    return { text: s, flags: flags };
+  }
+
   /* 向后端查询门票最终应付价与限购状态；先立即回调本地结果，后端返回后再回调一次 */
   function ticketQuote(s, isMember, done) {
     var db = S.get();
@@ -1628,18 +1639,35 @@
       var imgs = window._cclPubImgs || [];
       if (!content.trim() && !imgs.length) { UI.toast('说点什么，或至少配一张图'); return; }
       if (!window._cclPubAgree) { UI.toast('请先勾选《圈子发布规范》'); return; }
-      db.user.nickname = nick || db.user.nickname;
-      db.posts.unshift({
-        id: S.uid('p'), cat: window._cclPubCat || 'res', content: content.trim(),
-        images: imgs.slice(), mine: true, pinned: false, status: 'pending',
-        createdAt: nowStr(),
-        author: { nickname: db.user.nickname, avatarUrl: db.user.avatar, company: (db.user.profile || {}).company || '', industry: (db.user.profile || {}).industry || '' }
+      /* 落库：content 为打码后的最终文案（敏感信息自动隐藏，对接走平台引荐） */
+      var publish = function (finalContent) {
+        db.user.nickname = nick || db.user.nickname;
+        db.posts.unshift({
+          id: S.uid('p'), cat: window._cclPubCat || 'res', content: finalContent,
+          images: imgs.slice(), mine: true, pinned: false, status: 'pending',
+          createdAt: nowStr(),
+          author: { nickname: db.user.nickname, avatarUrl: db.user.avatar, company: (db.user.profile || {}).company || '', industry: (db.user.profile || {}).industry || '' }
+        });
+        S.save();
+        window._cclPubText = ''; window._cclPubImgs = []; window._cclPubAgree = false;
+        notify('boss', '📝', '新动态待审核', db.user.nickname + ' 发布了圈子动态');
+        UI.toast('已发布，等待平台审核');
+        setTimeout(function () { UI.go('#/circle'); }, 700);
+      };
+      /* 服务端校验优先（会员/顾问门槛 + 分类合法 + 敏感信息打码），不可达时本地规则兜底 */
+      apiPost('/post/check', {
+        content: content.trim(), cat: window._cclPubCat || 'res', images: imgs.slice(),
+        member: !!db.user.member, advisorAdded: !!db.user.advisorAdded
+      }, function (res) {
+        if (res && res.ok === false) { UI.toast(res.msg || '发布校验未通过'); return; }
+        if (res && res.ok) {
+          if (res.flags && res.flags.length) UI.toast(res.msg || '已自动隐藏联系方式，对接走平台引荐');
+          return publish(res.content);
+        }
+        var m = cclMask(content.trim());
+        if (m.flags.length) UI.toast('已自动隐藏联系方式，对接走平台引荐');
+        publish(m.text); /* 纯静态部署/接口不可达：沿用本地打码 */
       });
-      S.save();
-      window._cclPubText = ''; window._cclPubImgs = []; window._cclPubAgree = false;
-      notify('boss', '📝', '新动态待审核', db.user.nickname + ' 发布了圈子动态');
-      UI.toast('已发布，等待平台审核');
-      setTimeout(function () { UI.go('#/circle'); }, 700);
     },
     cclRefer: function (id) {
       var db = S.get();

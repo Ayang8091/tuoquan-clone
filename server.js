@@ -77,6 +77,30 @@ function ticketCalc(b) {
   };
 }
 
+/* ---------- 圈子动态：敏感信息打码（与前端 cclMask 保持同一套规则） ----------
+ * 承诺：动态里手机号/微信号/QQ/邮箱会被系统自动隐藏，对接走平台引荐 */
+function maskSensitive(text) {
+  var s = String(text || '');
+  var flags = [];
+  if (/1[3-9]\d{9}/.test(s)) {
+    flags.push('phone');
+    s = s.replace(/1[3-9]\d{9}/g, '［手机号已隐藏］');
+  }
+  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(s)) {
+    flags.push('email');
+    s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '［邮箱已隐藏］');
+  }
+  if (/(?:QQ|qq|ＱＱ)[：:\s]*\d{5,12}/.test(s)) {
+    flags.push('qq');
+    s = s.replace(/(?:QQ|qq|ＱＱ)[：:\s]*\d{5,12}/g, '［QQ已隐藏］');
+  }
+  if (/(?:微信号|微信|加v|加V|加VX|加vx|wx|WX|vx|VX)[：:\s]*[A-Za-z][A-Za-z0-9_-]{5,19}/.test(s)) {
+    flags.push('wechat');
+    s = s.replace(/(?:微信号|微信|加v|加V|加VX|加vx|wx|WX|vx|VX)[：:\s]*[A-Za-z][A-Za-z0-9_-]{5,19}/g, '［微信号已隐藏］');
+  }
+  return { text: s, flags: flags };
+}
+
 /* ---------- API 处理 ---------- */
 const apiHandlers = {
   /* 门票调整：查询该沙龙最终应付价（前端展示与按钮金额由此驱动） */
@@ -106,6 +130,27 @@ const apiHandlers = {
       code: 'TQ-S-' + String(Date.now()).slice(-4),
       serverTime: new Date().toISOString()
     }, r));
+  },
+
+  /* 圈子动态：发布前服务端校验（会员/顾问门槛 + 分类合法 + 内容校验 + 敏感信息打码） */
+  'post/check': async (body, res) => {
+    const cats = ['res', 'need', 'coop', 'idea'];
+    const cat = String(body.cat || '');
+    const content = String(body.content || '').trim();
+    const images = Array.isArray(body.images)
+      ? body.images.filter((u) => typeof u === 'string' && u.length < 2e6).slice(0, 9)
+      : [];
+    if (cats.indexOf(cat) < 0) return json(res, 200, { ok: false, reason: 'cat', msg: '动态分类不合法' });
+    if (!body.member) return json(res, 200, { ok: false, reason: 'member', msg: '圈子发帖仅限会员' });
+    if (!body.advisorAdded) return json(res, 200, { ok: false, reason: 'advisor', msg: '请先添加平台专属顾问' });
+    if (!content && !images.length) return json(res, 200, { ok: false, reason: 'empty', msg: '说点什么，或至少配一张图' });
+    if (content.length > 2000) return json(res, 200, { ok: false, reason: 'toolong', msg: '内容过长（上限 2000 字）' });
+    const m = maskSensitive(content);
+    json(res, 200, {
+      ok: true, source: 'server', cat: cat,
+      content: m.text, flags: m.flags, imageCount: images.length,
+      msg: m.flags.length ? '已自动隐藏 ' + m.flags.length + ' 处联系方式，对接走平台引荐' : ''
+    });
   },
 
   /* 微信 code 换用户信息 */
