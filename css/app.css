@@ -129,11 +129,11 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 .carousel .track::-webkit-scrollbar { display: none; }
 .carousel .slide {
   flex: 0 0 88%; width: 88%; height: 150px; margin-right: 8px; border-radius: 14px; position: relative;
-  scroll-snap-align: start; scroll-snap-stop: always;
+  scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden;
   color: #fff; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end;
   background-size: cover; background-position: center; background-color: #333;
 }
-.carousel .slide::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
+.carousel .slide::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
 .carousel .slide .st1 { font-size: 18px; font-weight: 700; position: relative; z-index: 1; }
 .carousel .slide .st2 { font-size: 12px; opacity: .85; margin-top: 4px; position: relative; z-index: 1; }
 .carousel .dots { display: flex; gap: 7px; justify-content: center; margin: 10px 0 10px; }
