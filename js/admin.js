@@ -43,7 +43,7 @@
   function ordersView(db) {
     return (db.signups || []).slice().sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); }).map(function (o) {
       var cm = (db.commissions || []).filter(function (c) { return c.signupId === o.id; })[0];
-      return { id: o.id, type: kindLabel(o), product: o.title || o.bossName || '—', user: o.name || '—', distributor: o.distName || '', amount: o.amount || 0, commission: cm ? cm.amount : 0, status: sigStatus(o), time: o.createdAt || '', raw: o };
+      return { id: o.id, kind: o.kind, type: kindLabel(o), product: o.title || o.bossName || '—', user: o.name || '—', distributor: o.distName || '', amount: o.amount || 0, commission: cm ? cm.amount : 0, status: sigStatus(o), time: o.createdAt || '', used: !!o.used, usedAt: o.usedAt || '', paid: !!o.paid, refunded: !!o.refunded, raw: o };
     });
   }
 
@@ -80,6 +80,7 @@
       Admin.renderBosses();
       Admin.renderSalons();
       Admin.renderOrders();
+      Admin.renderRefers();
       Admin.renderUsers();
       Admin.renderDistribute();
       Admin.renderLeads();
@@ -469,15 +470,76 @@
       var st = document.getElementById('orderStatus').value;
       var list = ordersView(db).filter(function (o) { return (!t || o.type === t) && (!st || o.status === st); });
       document.getElementById('orderTable').innerHTML =
-        '<tr><th>订单号</th><th>类型</th><th>内容</th><th>用户</th><th>分销员</th><th>金额</th><th>佣金</th><th>状态</th><th>时间</th><th>操作</th></tr>' +
+        '<tr><th>订单号</th><th>类型</th><th>内容</th><th>用户</th><th>分销员</th><th>金额</th><th>佣金</th><th>状态</th><th>核销</th><th>时间</th><th>操作</th></tr>' +
         list.map(function (o) {
+          /* 核销列：对应前端「我的沙龙凭证」与核销台（#/verify），仅沙龙票可核销 */
+          var vCell = '—';
+          if (o.kind === 'salon') {
+            vCell = o.used ? '<span class="tagx green">已核销</span><br><span style="font-size:11px;color:#86909c">' + esc(o.usedAt || '') + '</span>'
+              : (o.refunded ? '<span class="tagx red">已退款</span>' : (o.paid ? '<span class="tagx orange">待核销</span>' : '<span class="tagx gray">未支付</span>'));
+          }
           return '<tr><td>' + o.id + '</td><td>' + statusTag(o.type) + '</td><td>' + esc(o.product || o.boss || '—') + '</td>' +
             '<td>' + esc(o.user) + '</td><td>' + esc(o.distributor || '—') + '</td><td>¥' + o.amount + '</td><td>¥' + (o.commission || 0) + '</td>' +
-            '<td>' + statusTag(o.status) + '</td><td>' + o.time + '</td>' +
-            '<td>' + (o.status === '待对接' ? '<button class="btn sm primary" onclick="Admin.setOrder(\'' + o.id + '\',\'已对接\')">确认对接</button>' : '') +
-            (o.status === '已对接' ? '<button class="btn sm primary" onclick="Admin.setOrder(\'' + o.id + '\',\'已完成\')">完成</button>' : '') +
-            (o.status !== '已退款' ? ' <button class="btn sm danger" onclick="Admin.setOrder(\'' + o.id + '\',\'已退款\')">退款</button>' : '') + '</td></tr>';
+            '<td>' + statusTag(o.status) + '</td><td>' + vCell + '</td><td>' + o.time + '</td>' +
+            '<td style="white-space:nowrap">' + (o.status === '待对接' ? '<button class="btn sm primary" onclick="Admin.setOrder(\'' + o.id + '\',\'已对接\')">确认对接</button> ' : '') +
+            (o.status === '已对接' ? '<button class="btn sm primary" onclick="Admin.setOrder(\'' + o.id + '\',\'已完成\')">完成</button> ' : '') +
+            (o.kind === 'salon' && o.paid && !o.refunded && !o.used ? '<button class="btn sm primary" onclick="Admin.verifyOrder(\'' + o.id + '\')">核销</button> ' : '') +
+            (o.status !== '已退款' ? '<button class="btn sm danger" onclick="Admin.setOrder(\'' + o.id + '\',\'已退款\')">退款</button>' : '') + '</td></tr>';
         }).join('');
+    },
+    /* 核销：与用户端核销台同一套规则（已核销/已退款/未支付均拦截，核销后不可撤销） */
+    verifyOrder: function (id) {
+      var db = S.get();
+      var o = db.signups.find(function (x) { return x.id === id; });
+      if (!o) return;
+      if (o.used) { toast('⚠️ 该凭证已核销过，请勿重复核销'); return; }
+      if (o.refunded) { toast('❌ 该报名已退款，凭证已失效'); return; }
+      if (!o.paid) { toast('❌ 该报名未支付，无法核销'); return; }
+      if (!confirm('确认核销「' + (o.name || '') + ' · ' + (o.title || '') + '」？核销后不可撤销。')) return;
+      o.used = true; o.usedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      S.save(); Admin.renderOrders(); Admin.renderDash(); toast('✅ 核销成功 · ' + (o.name || ''));
+    },
+
+    /* ---------- 引荐对接台账（对应前端「我的引荐凭证」#/refer-ticket） ---------- */
+    renderRefers: function () {
+      var db = S.get();
+      var DOCK = { pending: ['待对接', 'orange'], submitted: ['已提交对接', 'blue'], done: ['已完成', 'green'], referred: ['已对接', 'blue'] };
+      var list = (db.referrals || []).slice().sort(function (a, b) { return String(b.submitTime || '').localeCompare(String(a.submitTime || '')); });
+      document.getElementById('referTable').innerHTML =
+        '<tr><th>客户</th><th>引荐对象</th><th>诉求</th><th>归属分销员</th><th>金额</th><th>状态</th><th>提交时间</th><th>操作</th></tr>' +
+        (list.length ? list.map(function (r) {
+          var key = r.referred && r.dock === 'pending' ? 'referred' : (r.dock || 'pending');
+          var st = DOCK[key] || DOCK.pending;
+          return '<tr><td><b>' + esc(r.client || '—') + '</b><br><span style="font-size:11px;color:#86909c">' + esc(r.phone || '') + '</span></td>' +
+            '<td>' + esc(r.bossName || '平台引荐') + (r.fromPost ? '<br><span class="tagx blue">来自圈子动态</span>' : '') + '</td>' +
+            '<td style="max-width:240px;font-size:12px;color:#4e5969">' + esc(r.demand || '—') + '</td>' +
+            '<td>' + esc(r.distName || '—') + '</td><td>¥' + (r.amount || 0) + '</td>' +
+            '<td><span class="tagx ' + st[1] + '">' + st[0] + '</span></td><td style="font-size:12px">' + esc(r.submitTime || '') + '</td>' +
+            '<td style="white-space:nowrap">' +
+            (key === 'pending' ? '<button class="btn sm primary" onclick="Admin.setRefer(\'' + r.id + '\',\'submitted\')">开始对接</button> ' : '') +
+            (key !== 'done' ? '<button class="btn sm primary" onclick="Admin.setRefer(\'' + r.id + '\',\'done\')">完成对接</button> ' : '') +
+            (key !== 'pending' ? '<button class="btn sm" onclick="Admin.setRefer(\'' + r.id + '\',\'pending\')">退回待对接</button>' : '') +
+            '</td></tr>';
+        }).join('') : '<tr><td colspan="8" style="text-align:center;color:#86909c;padding:18px">暂无引荐单</td></tr>');
+    },
+    /* 对接状态流转：语义与用户端严格一致 —— referred=true 才是「已完成对接」，
+       dock=submitted 表示「顾问已对接 · 待确认」（referred 仍为 false）；同步写回同一笔 signups */
+    setRefer: function (id, dock) {
+      var db = S.get();
+      var r = db.referrals.find(function (x) { return x.id === id; });
+      if (!r) return;
+      r.dock = dock;
+      r.referred = (dock === 'done');
+      if (dock === 'done') r.referredAt = new Date().toISOString().slice(0, 10);
+      else delete r.referredAt;
+      var o = db.signups.find(function (x) { return x.id === r.signupId; });
+      if (o) {
+        o.dock = dock;
+        o.referred = r.referred;
+        if (dock === 'done') o.referredAt = r.referredAt; else delete o.referredAt;
+      }
+      S.save(); Admin.renderRefers(); Admin.renderOrders(); Admin.renderDash(); Admin.renderDistribute();
+      toast('引荐单已更新为：' + ({ pending: '待对接', submitted: '对接中', done: '已完成' }[dock] || dock));
     },
     setOrder: function (id, status) {
       if (status === '已退款' && !confirm('确认退款？佣金将同步作废。')) return;
