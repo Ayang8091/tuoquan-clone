@@ -68,7 +68,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 .salon-scroll {
   flex: 1 1 auto; min-height: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 2px 0 10px;
+  padding: 0 0 10px;
 }
 
 /* ---------- 通用页面头 ---------- */
@@ -136,7 +136,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; outline: none; 
 .carousel .slide::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)); }
 .carousel .slide .st1 { font-size: 18px; font-weight: 700; position: relative; z-index: 1; }
 .carousel .slide .st2 { font-size: 12px; opacity: .85; margin-top: 4px; position: relative; z-index: 1; }
-.carousel .dots { display: flex; gap: 7px; justify-content: center; margin: 10px 0 12px; }
+.carousel .dots { display: flex; gap: 7px; justify-content: center; margin: 10px 0 10px; }
 .carousel .dots i { position: relative; width: 14px; height: 6px; border-radius: 3px; background: #d3d8de; cursor: pointer; padding: 0; border: 0; }
 .carousel .dots i::before { content: ''; position: absolute; inset: -9px; } /* 扩大点按热区 */
 .carousel .dots i.on { background: var(--blue); }
