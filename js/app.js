@@ -229,13 +229,15 @@
     var seat = Math.max(0, (s.seats || 0) - (s.joined || 0));
     var hot = s.seats ? (s.joined / s.seats) >= 0.8 : false;
     var statusTxt = !s.seats ? '报名中' : (seat <= 0 ? '已满员' : (hot ? '仅剩 ' + seat + ' 人' : '报名中 · 限 ' + s.seats + ' 人'));
+    /* 门票调整：卡片票价与用户端展示同步（生效期内显示调整后价格） */
+    var q = ticketLocal(s, (S.get().user || {}).member, S.get());
     return '<div class="boss-list"><div class="boss-card" onclick="UI.go(\'#/salon-detail/' + s.id + '\')">' +
       '<div class="boss-cover" style="' + coverStyle(s.banner) + ';height:150px">' +
       '<span style="position:absolute;left:14px;bottom:12px;color:#fff;font-weight:700">' + esc(s.title) + '</span>' +
       '<span class="s-status ' + (hot ? 'hot' : '') + '" style="position:absolute;right:12px;top:12px">' + statusTxt + '</span></div>' +
       '<div class="boss-inner"><div class="b-desc" style="margin:0">' + esc(s.desc) + '</div>' +
       '<div class="b-foot"><span class="matched">🗓️ ' + s.date + ' ' + (s.time || '') + ' · ' + s.city + '</span>' +
-      '<span class="price" style="color:var(--blue)">门票 ' + (s.price ? money(s.price) : '免费') + '</span></div></div></div></div>';
+      '<span class="price" style="color:var(--blue)">门票 ' + (q.finalPrice ? money(q.finalPrice) : '免费') + '</span></div></div></div></div>';
   }
 
   function startCarousel(n) {
@@ -956,8 +958,13 @@
       (closed ? '<div class="bd-foot-hint">已报名本场 · 到场出示报名凭证</div>'
         : '<div style="margin-top:10px"><button class="btn-ghost" style="width:100%" onclick="UI.go(\'#/pay/salon/' + s.id + '\')">再报一张 · 帮朋友报名</button></div>');
     else if (closed) btn = '<button class="btn-primary" style="background:#b0b5bb" onclick="UI.toast(\'' + (seat <= 0 ? '本场已满员，可联系主理人候补' : '该活动报名已截止') + '\')">' + (seat <= 0 ? '已满员 · 联系主理人候补' : '已截止报名') + '</button>';
-    else btn = (!isMember && s.mprice < s.price ? '<button class="btn-ghost" style="width:100%;margin-bottom:10px" onclick="UI.go(\'#/vip\')">开通会员立省 ' + money(s.price - s.mprice) + '</button>' : '') +
-      '<button class="btn-primary" id="salonBookBtn" data-price="' + ((isMember ? (s.mprice || 0) : (s.price || 0))) + '" onclick="User.startSalonBook(\'' + s.id + '\')">' + ((isMember ? (s.mprice || 0) : (s.price || 0)) === 0 ? '免费报名 · 领取报名凭证' : '立即报名 · ' + money(isMember ? s.mprice : s.price)) + '</button>';
+    else (function () {
+      /* 门票调整同步：立省金额按「当前生效票价 − 会员价」计算（与后端规则一致） */
+      var q0 = ticketLocal(s, isMember, db);
+      var ghost = (!isMember && s.mprice < q0.finalPrice) ? '<button class="btn-ghost" style="width:100%;margin-bottom:10px" onclick="UI.go(\'#/vip\')">开通会员立省 ' + money(q0.finalPrice - s.mprice) + '</button>' : '';
+      btn = ghost +
+        '<button class="btn-primary" id="salonBookBtn" data-price="' + q0.finalPrice + '" onclick="User.startSalonBook(\'' + s.id + '\')">' + (q0.finalPrice === 0 ? '免费报名 · 领取报名凭证' : '立即报名 · ' + money(q0.finalPrice)) + '</button>';
+    })();
 
     phone.innerHTML = pagebar('活动详情', '#/salon') +
       '<div class="boss-detail">' +

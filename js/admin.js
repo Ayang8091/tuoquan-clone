@@ -368,10 +368,10 @@
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="pvPhotos"></div>' +
         '<button class="btn sm" onclick="Admin.upSalonPhotos()" style="margin-top:8px">📤 上传现场照片</button></div>' +
 
-        /* ---------- 门票调整（仅后台配置，不影响用户端展示） ---------- */
+        /* ---------- 门票调整（启用且在生效期内，用户端展示与金额同步） ---------- */
         '<div class="tk-sec">' +
         '<div class="tk-hd">🎫 门票调整</div>' +
-        '<div class="tk-tip">在此配置门票相关策略，用于后台记录与调整；当前用户端门票展示保持不变。</div>' +
+        '<div class="tk-tip">在此配置门票相关策略；启用且在生效期内，用户端门票价格、报名按钮与支付金额将同步更新。</div>' +
         '<div class="mrow">' +
         '<div class="f"><label>调整状态</label><select id="tkOn"><option value="1"' + (tkOn === '1' ? ' selected' : '') + '>启用</option><option value="0"' + (tkOn === '0' ? ' selected' : '') + '>停用</option></select></div>' +
         '<div class="f"><label>门票类型</label><select id="tkType"><option value="paid"' + (tkType === 'paid' ? ' selected' : '') + '>收费</option><option value="free"' + (tkType === 'free' ? ' selected' : '') + '>免费</option></select></div>' +
@@ -408,7 +408,7 @@
         audience: (document.getElementById('mAudience') || {}).value || '',
         notice: (document.getElementById('mNotice') || {}).value || '',
         photos: window._editTemp.photos || [],
-        /* 门票调整（后台独立配置，不参与用户端渲染） */
+        /* 门票调整（生效期内用户端门票价/报名/支付金额同步使用调整价） */
         ticketAdjust: {
           enabled: (document.getElementById('tkOn') || {}).value === '1',
           ticketType: (document.getElementById('tkType') || {}).value || 'paid',
