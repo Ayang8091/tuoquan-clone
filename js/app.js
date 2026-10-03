@@ -23,6 +23,7 @@
 
   var S = window.Store;
   var phone = document.getElementById('phone');
+  function $(id) { return document.getElementById(id); }
 
   /* ---------------- UI 工具 ---------------- */
   var UI = window.UI = {
@@ -127,6 +128,56 @@
   }
 
   /* 暴露给子模块（workbench.js / distro.js）与内联事件 */
+  /* ================= 门票调整：前后端联动（仅数据与交互，不改布局/样式/元素位置） ================= */
+  var API_BASE = (window.WX_CONFIG && window.WX_CONFIG.apiBase) || '/api';
+
+  /* 本地兜底计算：规则与后端 ticketCalc 保持一致（后端不可达时使用） */
+  function ticketLocal(s, isMember, db) {
+    var tk = s.ticketAdjust || {};
+    var today = S.today();
+    var base = isMember ? (s.mprice || 0) : (s.price || 0);
+    var winOk = (!tk.from || today >= String(tk.from)) && (!tk.to || today <= String(tk.to));
+    var active = !!tk.enabled && winOk;
+    var bought = (db.signups || []).filter(function (x) {
+      return x.kind === 'salon' && x.evId === s.id && x.phone === (db.user || {}).phone && x.paid && !x.refunded;
+    }).length;
+    var limit = +tk.limit || 0;
+    return {
+      active: active, windowOk: winOk, basePrice: base,
+      originPrice: tk.originPrice != null ? +tk.originPrice : (s.price || 0),
+      adjustPrice: +tk.adjustPrice || 0,
+      finalPrice: active ? (+tk.adjustPrice || 0) : base,
+      limit: limit, bought: bought, remaining: limit ? Math.max(0, limit - bought) : -1,
+      limitOk: !limit || bought < limit, hint: tk.hint || '', note: tk.note || ''
+    };
+  }
+
+  function apiPost(path, payload, cb) {
+    try {
+      fetch(API_BASE + path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {})
+      }).then(function (r) { return r.json(); }).then(function (d) { cb(d); })
+        .catch(function () { cb(null); });
+    } catch (e) { cb(null); }
+  }
+
+  /* 向后端查询门票最终应付价与限购状态；先立即回调本地结果，后端返回后再回调一次 */
+  function ticketQuote(s, isMember, done) {
+    var db = S.get();
+    var local = ticketLocal(s, isMember, db);
+    if (done) done(local, false);
+    if (!s || !s.id) return;
+    apiPost('/ticket/quote', {
+      salonId: s.id, title: s.title || '', price: s.price || 0, mprice: s.mprice || 0,
+      isMember: !!isMember, ticketAdjust: s.ticketAdjust || null,
+      boughtCount: local.bought, phone: (db.user || {}).phone || '', today: S.today()
+    }, function (res) {
+      if (!res || !res.ok || !done) return;
+      res.fromServer = true;
+      done(res, true);
+    });
+  }
+
   window.HUI = {
     pagebar: pagebar, tabbar: tabbar, ICONS: ICONS, qrSVG: qrSVG,
     vipFabHtml: vipFabHtml, loginChip: loginChip, coverStyle: coverStyle,
@@ -538,17 +589,27 @@
         (db.user.role === 'distributor' || db.user.role === 'boss' ? row('🔒 渠道归属', esc(db.user.nickname) + ' · 佣金自动归属') : '') +
         row('身份', isMember ? '会员价' : '非会员价') +
         (!isMember && ev.mprice < ev.price ? row('开通会员可省', money(ev.price - ev.mprice)) : '') +
-        '<div class="p-row"><span class="k">金额</span><span class="v big">' + (price ? money(price) + '.00' : '免费') + '</span></div></div>' +
+        '<div class="p-row"><span class="k">金额</span><span class="v big" id="payAmt">' + (price ? money(price) + '.00' : '免费') + '</span></div></div>' +
         '<div class="form-card"><h4>报名信息</h4>' +
         '<div class="f-label">姓名 <span class="req">*</span></div><input class="f-input" id="pfName" value="' + esc(db.user.nickname) + '">' +
         '<div class="f-label">手机号 <span class="req">*</span></div><input class="f-input" id="pfPhone" value="' + esc(db.user.phone || '') + '">' +
         '<div class="f-label">希望通过沙龙获得什么 <span class="opt">选填</span></div>' +
         '<textarea class="f-textarea" id="pfWant" placeholder="例：找东南亚物流渠道"></textarea></div>' +
-        (price ? '<button class="btn-wechat" style="width:100%" onclick="User.confirmSalonPay(\'' + ev.id + '\',' + price + ')">微信支付 · 立即报名 ' + money(price) + '</button>' +
+        (price ? '<button class="btn-wechat" style="width:100%" id="payBtn" onclick="User.confirmSalonPay(\'' + ev.id + '\')">微信支付 · 立即报名 ' + money(price) + '</button>' +
           '<div style="text-align:center;font-size:11px;color:var(--txt3);margin-top:8px">微信支付安全收款 · 由微信支付提供技术支持</div>'
-          : '<button class="btn-primary" onclick="User.confirmSalonPay(\'' + ev.id + '\',0)">免费领取报名凭证</button>' +
+          : '<button class="btn-primary" id="payBtn" onclick="User.confirmSalonPay(\'' + ev.id + '\',0)">免费领取报名凭证</button>' +
           '<div style="text-align:center;font-size:11px;color:var(--txt3);margin-top:8px">免费票提交后立即出票</div>') +
         '</div>';
+      /* 门票调整：以后端返回的应付价回填既有金额/按钮（同元素、同位置、同样式） */
+      ticketQuote(ev, isMember, function (q) {
+        var amt = document.getElementById('payAmt');
+        if (amt) amt.textContent = q.finalPrice ? money(q.finalPrice) + '.00' : '免费';
+        var bt = document.getElementById('payBtn');
+        if (bt) {
+          bt.setAttribute('data-price', q.finalPrice);
+          bt.textContent = q.finalPrice ? '微信支付 · 立即报名 ' + money(q.finalPrice) : '免费领取报名凭证';
+        }
+      });
       return;
     }
     /* 老板引荐 */
@@ -896,7 +957,7 @@
         : '<div style="margin-top:10px"><button class="btn-ghost" style="width:100%" onclick="UI.go(\'#/pay/salon/' + s.id + '\')">再报一张 · 帮朋友报名</button></div>');
     else if (closed) btn = '<button class="btn-primary" style="background:#b0b5bb" onclick="UI.toast(\'' + (seat <= 0 ? '本场已满员，可联系主理人候补' : '该活动报名已截止') + '\')">' + (seat <= 0 ? '已满员 · 联系主理人候补' : '已截止报名') + '</button>';
     else btn = (!isMember && s.mprice < s.price ? '<button class="btn-ghost" style="width:100%;margin-bottom:10px" onclick="UI.go(\'#/vip\')">开通会员立省 ' + money(s.price - s.mprice) + '</button>' : '') +
-      '<button class="btn-primary" onclick="UI.go(\'#/pay/salon/' + s.id + '\')">' + ((isMember ? (s.mprice || 0) : (s.price || 0)) === 0 ? '免费报名 · 领取报名凭证' : '立即报名 · ' + money(isMember ? s.mprice : s.price)) + '</button>';
+      '<button class="btn-primary" id="salonBookBtn" data-price="' + ((isMember ? (s.mprice || 0) : (s.price || 0))) + '" onclick="User.startSalonBook(\'' + s.id + '\')">' + ((isMember ? (s.mprice || 0) : (s.price || 0)) === 0 ? '免费报名 · 领取报名凭证' : '立即报名 · ' + money(isMember ? s.mprice : s.price)) + '</button>';
 
     phone.innerHTML = pagebar('活动详情', '#/salon') +
       '<div class="boss-detail">' +
@@ -944,6 +1005,14 @@
       '<div style="padding:2px 0 14px">' + btn + '</div>' +
       '<div class="bd-foot-hint">到场出示报名凭证入场 · 会员享专属价与优先锁座</div>' +
       '</div>';
+
+    /* 门票调整：向后端取最终应付价，回填既有按钮（不新增元素、不改样式与位置） */
+    ticketQuote(s, isMember, function (q) {
+      var b = document.getElementById('salonBookBtn');
+      if (!b || !q) return;
+      b.setAttribute('data-price', q.finalPrice);
+      b.textContent = q.finalPrice === 0 ? '免费报名 · 领取报名凭证' : '立即报名 · ' + money(q.finalPrice);
+    });
   }
 
   /* ================= 页面：引荐提交（兼容旧路由，直接进收银台） ================= */
@@ -1277,6 +1346,16 @@
     },
 
     /* ---------- 沙龙报名 ---------- */
+    /* 报名入口：先按门票规则校验（限购），通过后进入收银台 */
+    startSalonBook: function (evId) {
+      var db = S.get();
+      var s = db.salons.filter(function (x) { return x.id === evId; })[0] || {};
+      ticketQuote(s, db.user.member, function (q, fromServer) {
+        if (fromServer) return; /* 服务端校正回调：仅用于回填价格，不重复跳转 */
+        if (q && !q.limitOk) { UI.toast('每人限购 ' + q.limit + ' 张，您已报名 ' + q.bought + ' 张'); return; }
+        UI.go('#/pay/salon/' + evId);
+      });
+    },
     confirmSalonPay: function (evId, price) {
       var db = S.get(), u = db.user;
       var ev = db.salons.filter(function (x) { return x.id === evId; })[0] || {};
@@ -1285,27 +1364,45 @@
       var want = ($('pfWant') || {}).value || '';
       if (!name.trim()) { UI.toast('请填写姓名'); return; }
       if (!/^1\d{10}$/.test(phoneNo || '')) { UI.toast('请填写正确的 11 位手机号'); return; }
-      var sg = {
-        id: S.uid('sg'), kind: 'salon', type: u.member ? 'vip' : 'normal', evId: evId,
-        title: ev.title || '沙龙报名', name: name.trim(), phone: phoneNo, amount: price,
-        paid: true, paidAt: nowStr(), refunded: false, createdAt: nowStr(),
-        code: 'TQ-S-' + String(Date.now()).slice(-4), dist: u.inviteCode, distName: u.nickname,
-        formData: { '姓名': name.trim(), '手机号': phoneNo, '希望通过沙龙获得什么': want }
+      var base = (price == null) ? (u.member ? (ev.mprice || 0) : (ev.price || 0)) : price;
+
+      /* 下单落库（金额与凭证号以后端确认为准，后端不可达时回退前端计算） */
+      var submit = function (finalPrice, code) {
+        var sg = {
+          id: S.uid('sg'), kind: 'salon', type: u.member ? 'vip' : 'normal', evId: evId,
+          title: ev.title || '沙龙报名', name: name.trim(), phone: phoneNo, amount: finalPrice,
+          paid: true, paidAt: nowStr(), refunded: false, createdAt: nowStr(),
+          code: code || ('TQ-S-' + String(Date.now()).slice(-4)), dist: u.inviteCode, distName: u.nickname,
+          formData: { '姓名': name.trim(), '手机号': phoneNo, '希望通过沙龙获得什么': want }
+        };
+        db.signups.unshift(sg);
+        ev.joined = (ev.joined || 0) + 1;
+        if (finalPrice > 0) {
+          db.commissions.unshift({
+            id: S.uid('cm'), signupId: sg.id, kind: 'salon', title: sg.title, name: sg.name,
+            amount: Math.round(finalPrice * db.config.salonCommissionRate) / 100, rate: db.config.salonCommissionRate,
+            dist: u.inviteCode, distName: u.nickname, status: '待结算', time: nowStr()
+          });
+        }
+        S.save();
+        notify('user', '🎫', '报名成功', sg.title + ' · 到场出示报名凭证');
+        notify('boss', '🎫', '新报名 · ' + sg.title, sg.name + ' · ' + (finalPrice ? money(finalPrice) : '免费票') + ' · 编号 ' + sg.code);
+        UI.toast(finalPrice ? '支付成功 · 报名凭证已生成' : '报名成功 · 报名凭证已生成');
+        setTimeout(function () { UI.go('#/ticket/' + sg.id); }, 800);
       };
-      db.signups.unshift(sg);
-      ev.joined = (ev.joined || 0) + 1;
-      if (price > 0) {
-        db.commissions.unshift({
-          id: S.uid('cm'), signupId: sg.id, kind: 'salon', title: sg.title, name: sg.name,
-          amount: Math.round(price * db.config.salonCommissionRate) / 100, rate: db.config.salonCommissionRate,
-          dist: u.inviteCode, distName: u.nickname, status: '待结算', time: nowStr()
-        });
-      }
-      S.save();
-      notify('user', '🎫', '报名成功', sg.title + ' · 到场出示报名凭证');
-      notify('boss', '🎫', '新报名 · ' + sg.title, sg.name + ' · ' + (price ? money(price) : '免费票') + ' · 编号 ' + sg.code);
-      UI.toast(price ? '支付成功 · 报名凭证已生成' : '报名成功 · 报名凭证已生成');
-      setTimeout(function () { UI.go('#/ticket/' + sg.id); }, 800);
+
+      var bought = (db.signups || []).filter(function (x) {
+        return x.kind === 'salon' && x.evId === evId && x.phone === phoneNo && x.paid && !x.refunded;
+      }).length;
+      apiPost('/ticket/confirm', {
+        salonId: evId, title: ev.title || '', price: ev.price || 0, mprice: ev.mprice || 0,
+        isMember: !!u.member, ticketAdjust: ev.ticketAdjust || null, boughtCount: bought,
+        phone: phoneNo, name: name.trim(), qty: 1, today: S.today()
+      }, function (res) {
+        if (res && res.ok === false) { UI.toast(res.msg || '报名校验未通过'); return; }
+        if (res && res.ok) return submit(res.finalPrice, res.code);
+        submit(base, null); /* 纯静态部署/接口不可达：沿用前端价 */
+      });
     },
 
     /* ---------- 老板引荐 ---------- */

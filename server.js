@@ -48,8 +48,66 @@ function httpsGet(target) {
   });
 }
 
+/* ---------- 门票调整：规则计算（与前端 ticketLocal 保持同一套规则） ---------- */
+function ticketCalc(b) {
+  const tk = b.ticketAdjust || {};
+  /* 业务日期：优先用客户端日期（用户所在时区），缺省用服务器日期 */
+  const today = String(b.today || '').trim() || new Date().toISOString().slice(0, 10);
+  const from = String(tk.from || '');
+  const to = String(tk.to || '');
+  const windowOk = (!from || today >= from) && (!to || today <= to);
+  const active = !!tk.enabled && windowOk;
+  const price = +b.price || 0;
+  const mprice = +b.mprice || 0;
+  const base = b.isMember ? mprice : price;
+  const adjustPrice = +tk.adjustPrice || 0;
+  const finalPrice = active ? adjustPrice : base;
+  const limit = +tk.limit || 0;
+  const bought = +b.boughtCount || 0;
+  return {
+    salonId: String(b.salonId || ''),
+    active: active, windowOk: windowOk, window: { from: from, to: to },
+    basePrice: base, originPrice: (tk.originPrice != null ? +tk.originPrice : price),
+    adjustPrice: adjustPrice, finalPrice: finalPrice,
+    limit: limit, bought: bought,
+    remaining: limit ? Math.max(0, limit - bought) : -1,
+    limitOk: !limit || bought < limit,
+    hint: String(tk.hint || ''), note: String(tk.note || ''),
+    serverDate: new Date().toISOString().slice(0, 10)
+  };
+}
+
 /* ---------- API 处理 ---------- */
 const apiHandlers = {
+  /* 门票调整：查询该沙龙最终应付价（前端展示与按钮金额由此驱动） */
+  'ticket/quote': async (body, res) => {
+    const r = ticketCalc(body);
+    json(res, 200, Object.assign({ ok: true, source: 'server', serverTime: new Date().toISOString() }, r));
+  },
+
+  /* 门票调整：下单前确认（限购校验 + 最终应付价 + 凭证号） */
+  'ticket/confirm': async (body, res) => {
+    const r = ticketCalc(body);
+    if (!r.limitOk) {
+      return json(res, 200, Object.assign({
+        ok: false, reason: 'limit',
+        msg: '每人限购 ' + r.limit + ' 张，您已报名 ' + r.bought + ' 张'
+      }, r));
+    }
+    const qty = Math.max(1, +body.qty || 1);
+    if (r.limit && r.bought + qty > r.limit) {
+      return json(res, 200, Object.assign({
+        ok: false, reason: 'limit', msg: '每人限购 ' + r.limit + ' 张，剩余可报 ' + r.remaining + ' 张'
+      }, r));
+    }
+    json(res, 200, Object.assign({
+      ok: true, source: 'server', qty: qty,
+      orderNo: 'TKT' + Date.now(),
+      code: 'TQ-S-' + String(Date.now()).slice(-4),
+      serverTime: new Date().toISOString()
+    }, r));
+  },
+
   /* 微信 code 换用户信息 */
   'wx/exchange': async (body, res) => {
     const from = body.from || 'wxmp';
