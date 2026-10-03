@@ -266,7 +266,7 @@
     var q = ticketLocal(s, (S.get().user || {}).member, S.get());
     var ft = tkFlagText(q);
     return '<div class="boss-list"><div class="boss-card" onclick="UI.go(\'#/salon-detail/' + s.id + '\')">' +
-      '<div class="boss-cover" style="' + coverStyle(s.banner) + ';height:150px">' +
+      '<div class="boss-cover" style="' + (s.videoCover ? 'background:#1c2129 url(' + s.videoCover + ') center/cover no-repeat;' : coverStyle(s.banner)) + ';height:150px">' +
       '<span style="position:absolute;left:14px;bottom:12px;color:#fff;font-weight:700">' + esc(s.title) + '</span>' +
       '<span class="s-status ' + (hot ? 'hot' : '') + '" style="position:absolute;right:12px;top:12px">' + statusTxt + '</span></div>' +
       '<div class="boss-inner"><div class="b-desc" style="margin:0">' + esc(s.desc) + '</div>' +
@@ -1015,10 +1015,16 @@
       (s.desc ? '<div class="bd-card"><h4>📝 沙龙简介</h4><div style="font-size:12px;color:var(--txt2);line-height:1.8;white-space:pre-wrap">' + esc(s.desc) + '</div></div>' : '') +
 
       (s.videoUrl ? '<div class="bd-card"><h4>🎬 沙龙预告视频</h4>' +
-        '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdeaea;border-radius:10px" onclick="window.open(\'' + s.videoUrl + '\',\'_blank\')">' +
+        (s.videoCover
+          ? '<div style="position:relative;border-radius:10px;overflow:hidden" onclick="window.open(\'' + s.videoUrl + '\',\'_blank\')">' +
+            '<img src="' + s.videoCover + '" style="width:100%;display:block;aspect-ratio:2/1;object-fit:cover">' +
+            '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.25))">' +
+            '<span style="width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;padding-left:3px">▶</span></div>' +
+            '<div style="position:absolute;left:10px;bottom:8px;color:#fff;font-size:11px;text-shadow:0 1px 4px rgba(0,0,0,.6)">点击播放预告视频</div></div>'
+          : '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdeaea;border-radius:10px" onclick="window.open(\'' + s.videoUrl + '\',\'_blank\')">' +
         '<div style="width:36px;height:36px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🎬</div>' +
         '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#a3741b">查看沙龙预告视频</div>' +
-        '<div style="font-size:11px;color:var(--txt3);margin-top:1px">视频号实拍 · 点击跳转观看</div></div><span style="color:#a3741b">›</span></div></div>' : '') +
+        '<div style="font-size:11px;color:var(--txt3);margin-top:1px">视频号实拍 · 点击跳转观看</div></div><span style="color:#a3741b">›</span></div>') + '</div>' : '') +
 
       ((s.sharePoints && s.sharePoints.filter(function (x) { return String(x || '').trim(); }).length)
         ? '<div class="bd-card"><h4>📌 分享要点</h4>' +

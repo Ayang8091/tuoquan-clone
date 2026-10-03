@@ -261,10 +261,11 @@
         document.getElementById('pvAvaTip').textContent = '已设置头像';
       });
     },
-    grabCover: function () {
-      var u = document.getElementById('mVideoUrl').value.trim();
+    grabCover: function (inputId, pvId, tipId) {
+      inputId = inputId || 'mVideoUrl'; pvId = pvId || 'pvCover'; tipId = tipId || 'pvCoverTip';
+      var u = document.getElementById(inputId).value.trim();
       if (!u) { toast('请先粘贴视频号链接'); return; }
-      var tip = document.getElementById('pvCoverTip');
+      var tip = document.getElementById(tipId);
       if (tip) tip.textContent = '正在抓取封面...';
       var base = location.origin.startsWith('http') ? location.origin : '';
       fetch(base + '/api/video/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) })
@@ -279,9 +280,9 @@
               cv.width = 900; cv.height = 450;
               cv.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, 0, s, s / 2, 0, 0, 900, 450);
               window._editTemp.videoCover = cv.toDataURL('image/jpeg', 0.82);
-              var pv = document.getElementById('pvCover');
+              var pv = document.getElementById(pvId);
               pv.src = window._editTemp.videoCover; pv.style.display = '';
-              document.getElementById('pvCoverTip').textContent = '已自动抓取封面';
+              document.getElementById(tipId).textContent = '已自动抓取封面';
               toast('封面抓取成功');
             };
             img.onerror = function () {
@@ -361,6 +362,13 @@
         '<div class="f"><label>状态</label><select id="mStatus">' + ['筹备中', '报名中', '已结束'].map(function (x) { return '<option ' + (s.status === x ? 'selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>' +
         '<div class="f"><label>描述</label><textarea id="mDesc">' + esc(s.desc) + '</textarea></div>' +
         '<div class="f"><label>沙龙预告视频链接（视频号/其他视频链接，用户端点击跳转播放）</label><input id="mVideo" value="' + esc(s.videoUrl || '') + '" placeholder="https://channels.weixin.qq.com/..."></div>' +
+        '<div class="f"><label>视频封面图（自动抓取或上传，900×450 自动裁剪压缩；未设置·无封面时展示默认样式，同步到沙龙活动管理前端）</label>' +
+        '<div style="display:flex;gap:12px;align-items:flex-start">' +
+        '<img id="pvSCover" src="' + esc(s.videoCover || '') + '" style="width:150px;height:75px;object-fit:cover;border-radius:8px;background:#f0f2f5;' + (s.videoCover ? '' : 'display:none') + '">' +
+        '<div><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn sm" onclick="Admin.upSalonCover()">📤 上传封面</button>' +
+        '<button class="btn sm" onclick="Admin.grabCover(\'mVideo\',\'pvSCover\',\'pvSCoverTip\')">🪄 自动抓取</button></div>' +
+        '<div style="font-size:11px;color:#86909c;margin-top:4px" id="pvSCoverTip">' + (s.videoCover ? '已设置封面' : '未设置 · 无封面时展示默认样式') + '</div></div></div></div>' +
         '<div class="f"><label>分享要点（每行一条，用户端按序号列表展示）</label><textarea id="mPoints">' + esc((s.sharePoints || []).join('\n')) + '</textarea></div>' +
         '<div class="f"><label>适合人群</label><textarea id="mAudience">' + esc(s.audience || '') + '</textarea></div>' +
         '<div class="f"><label>报名须知</label><textarea id="mNotice">' + esc(s.notice || '') + '</textarea></div>' +
@@ -386,8 +394,17 @@
         '</div>' +
 
         '<div class="mfoot"><button class="btn" onclick="Admin.closeModal()">取消</button><button class="btn primary" onclick="Admin.saveSalon(\'' + (id || '') + '\')">保存</button></div>');
-      window._editTemp = { photos: (s.photos || []).slice() };
+      window._editTemp = { photos: (s.photos || []).slice(), videoCover: s.videoCover || '' };
       Admin.renderPhotoPv();
+    },
+    upSalonCover: function () {
+      ImgUp.pick({ ratio: 2, max: 900, targetKB: 160 }, function (urls) {
+        window._editTemp.videoCover = urls[0];
+        var pv = document.getElementById('pvSCover');
+        pv.src = urls[0]; pv.style.display = '';
+        document.getElementById('pvSCoverTip').textContent = '已设置封面（' + Math.round(urls[0].length / 1365) + 'KB）';
+        toast('封面已压缩至 900×450');
+      });
     },
     upSalonPhotos: function () {
       ImgUp.pick({ ratio: 0, max: 1000, targetKB: 200, multiple: true }, function (urls) {
@@ -404,6 +421,7 @@
         seats: +document.getElementById('mSeats').value || 60, status: document.getElementById('mStatus').value,
         desc: document.getElementById('mDesc').value,
         videoUrl: (document.getElementById('mVideo') || {}).value ? document.getElementById('mVideo').value.trim() : '',
+        videoCover: window._editTemp.videoCover || '',
         sharePoints: ((document.getElementById('mPoints') || {}).value || '').split('\n').filter(function (x) { return x.trim(); }),
         audience: (document.getElementById('mAudience') || {}).value || '',
         notice: (document.getElementById('mNotice') || {}).value || '',
