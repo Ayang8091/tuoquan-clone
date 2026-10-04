@@ -30,6 +30,11 @@
 
   /* ---------- 按当前路由动态生成分享内容（对齐设计稿：标题+描述+缩略图） ---------- */
   function routeShare() {
+    var r = routeShareRaw();
+    r.link = SHARE.link || (location.origin + location.pathname + (location.hash || '#/')); /* 带当前页面路由 */
+    return r;
+  }
+  function routeShareRaw() {
     var db = (window.Store && window.Store.get()) || {};
     var c = db.config || {};
     var brand = c.siteName || '乐道AI';
@@ -73,7 +78,6 @@
   var wxReady = false;
   function applyShare() {
     shareData = routeShare();
-    shareData.link = SHARE.link || (location.origin + location.pathname + (location.hash || '#/')); /* 带当前页面路由 */
     /* 保底：JS-SDK 未激活时，微信默认卡片的标题也取 document.title —— 按路由动态改标题即可对齐设计稿的标题部分 */
     if (shareData.title) document.title = shareData.title;
     if (wxReady) {
@@ -84,6 +88,7 @@
     }
   }
   window.addEventListener('hashchange', applyShare);
+  window.routeShare = routeShare;   /* 供 share-card.js 生成分享卡片图使用 */
 
   function initWxSdk() {
     /* JS-SDK 官方 CDN，仅微信内需要 */
