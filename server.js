@@ -152,6 +152,48 @@ function paySanitize(b) {
   return p;
 }
 
+/* ---------- 扫码收款订单：待确认 → 已到账/已过期 ----------
+ * 用户端打开收款弹窗时创建订单（pending），前端轮询 status；
+ * 后台「扫码收款确认」核实款项到账后置为 paid，用户端按钮才解锁。
+ * 超过有效期未到账自动标记 expired（对应二维码过期/支付超时）。 */
+const PAYORDERS_FILE = path.join(DATA_DIR, 'payorders.json');
+const PAY_ORDER_TTL = 5 * 60 * 1000; /* 单笔订单有效期 5 分钟 */
+function poRead() {
+  try { return JSON.parse(fs.readFileSync(PAYORDERS_FILE, 'utf8')); } catch (e) { return []; }
+}
+function poWrite(list) {
+  /* 只保留最近 200 条，防止无限膨胀 */
+  fs.writeFileSync(PAYORDERS_FILE, JSON.stringify(list.slice(0, 200), null, 2));
+}
+function poFind(orderNo) {
+  return poRead().find((o) => o.orderNo === orderNo) || null;
+}
+function poUpdate(orderNo, patch) {
+  const list = poRead();
+  const o = list.find((x) => x.orderNo === orderNo);
+  if (!o) return null;
+  Object.assign(o, patch);
+  poWrite(list);
+  return o;
+}
+function poCreate(b) {
+  const now = Date.now();
+  const o = {
+    orderNo: 'PO' + now + Math.random().toString(36).slice(2, 6).toUpperCase(),
+    kind: ['salon', 'refer', 'member'].indexOf(b.kind) >= 0 ? b.kind : 'custom',
+    title: String(b.title || '').slice(0, 120),
+    amount: Math.min(1000000, Math.max(0, +b.amount || 0)),
+    status: 'pending',
+    createdAt: now,
+    expireAt: now + PAY_ORDER_TTL,
+    paidAt: 0
+  };
+  const list = poRead();
+  list.unshift(o);
+  poWrite(list);
+  return o;
+}
+
 /* ---------- API 处理 ---------- */
 const apiHandlers = {
   /* 支付收款信息：上传收款二维码（dataURL → uploads 文件 → 可访问 URL） */
@@ -169,6 +211,37 @@ const apiHandlers = {
   /* 支付收款信息：读取（用户端收款弹窗拉取最新配置） */
   'pay/info': async (body, res) => {
     json(res, 200, { ok: true, source: 'server', payInfo: payRead() });
+  },
+
+  /* 扫码收款：创建待确认订单（用户端收款弹窗打开时调用） */
+  'pay/order/create': async (body, res) => {
+    const o = poCreate(body);
+    json(res, 200, { ok: true, source: 'server', orderNo: o.orderNo, status: o.status, amount: o.amount, expireAt: o.expireAt, ttl: PAY_ORDER_TTL });
+  },
+
+  /* 扫码收款：轮询订单状态（前端据此解锁「我已完成支付」） */
+  'pay/order/status': async (body, res) => {
+    const no = String(body.orderNo || '');
+    let o = poFind(no);
+    if (!o) return json(res, 200, { ok: false, reason: 'notfound', msg: '订单不存在，请重新获取二维码' });
+    if (o.status === 'pending' && Date.now() > o.expireAt) o = poUpdate(no, { status: 'expired' }) || o;
+    json(res, 200, { ok: true, source: 'server', orderNo: no, status: o.status, amount: o.amount, expireAt: o.expireAt, paidAt: o.paidAt, serverTime: Date.now() });
+  },
+
+  /* 扫码收款：后台确认到账 / 作废（订单管理「扫码收款确认」） */
+  'pay/order/confirm': async (body, res) => {
+    const no = String(body.orderNo || '');
+    const action = body.action === 'void' ? 'void' : 'paid';
+    const o = poFind(no);
+    if (!o) return json(res, 200, { ok: false, msg: '订单不存在' });
+    if (o.status === 'expired') return json(res, 200, { ok: false, msg: '订单已过期，请让用户重新获取二维码' });
+    const u = poUpdate(no, { status: action === 'paid' ? 'paid' : 'void', paidAt: action === 'paid' ? Date.now() : 0 });
+    json(res, 200, { ok: true, source: 'server', orderNo: no, status: u.status, paidAt: u.paidAt });
+  },
+
+  /* 扫码收款：订单列表（后台「扫码收款确认」台账） */
+  'pay/order/list': async (body, res) => {
+    json(res, 200, { ok: true, source: 'server', orders: poRead() });
   },
 
   /* 门票调整：查询该沙龙最终应付价（前端展示与按钮金额由此驱动） */

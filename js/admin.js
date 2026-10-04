@@ -80,6 +80,7 @@
       Admin.renderBosses();
       Admin.renderSalons();
       Admin.renderOrders();
+      Admin.renderPayOrders();
       Admin.renderRefers();
       Admin.renderUsers();
       Admin.renderDistribute();
@@ -994,6 +995,39 @@
         }
       });
       S.save(); toast('配置已保存，用户端实时生效');
+    },
+
+    /* ---------- 扫码收款确认（待到账订单台账） ---------- */
+    renderPayOrders: function () {
+      var el = document.getElementById('payOrderTable');
+      if (!el) return;
+      fetch('/api/pay/order/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var list = ((d && d.orders) || []).slice(0, 30);
+          var st = { pending: ['<span style="color:#ff7d00">待确认</span>', ''], paid: ['<span style="color:#00b42a">已到账</span>', ''], expired: ['<span style="color:#86909c">已过期</span>', ' disabled'], void: ['<span style="color:#86909c">已作废</span>', ' disabled'] };
+          el.innerHTML = '<tr><th>订单号</th><th>内容</th><th>金额</th><th>创建时间</th><th>有效期至</th><th>状态</th><th>操作</th></tr>' +
+            (list.length ? list.map(function (o) {
+              var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
+              var s = st[o.status] || [o.status, ' disabled'];
+              return '<tr><td>' + esc(o.orderNo) + '</td><td>' + esc(o.title || o.kind) + '</td><td>¥' + o.amount + '</td>' +
+                '<td>' + fmt(o.createdAt) + '</td><td>' + fmt(o.expireAt) + '</td><td>' + s[0] + '</td>' +
+                '<td>' + (o.status === 'pending' ? '<button class="btn sm primary"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'paid\')">✓ 确认到账</button> ' +
+                  '<button class="btn sm danger"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'void\')">作废</button>' : '—') + '</td></tr>';
+            }).join('') : '<tr><td colspan="7" style="text-align:center;color:#86909c;padding:18px 0">暂无扫码收款订单（用户端打开收款弹窗后生成）</td></tr>');
+        })
+        .catch(function () { el.innerHTML = '<tr><td style="color:#86909c">收款服务不可达</td></tr>'; });
+    },
+    confirmPayOrder: function (orderNo, action) {
+      fetch('/api/pay/order/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderNo: orderNo, action: action }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) {
+            toast(action === 'paid' ? '已确认到账，用户端支付按钮已解锁' : '订单已作废');
+          } else toast((d && d.msg) || '操作失败');
+          Admin.renderPayOrders();
+        })
+        .catch(function () { toast('收款服务不可达'); });
     },
 
     closeModal: closeModal,

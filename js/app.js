@@ -38,6 +38,7 @@
       document.getElementById(id).style.display = 'block';
     },
     closeSheet: function () {
+      if (window._pcTimer) { clearInterval(window._pcTimer); window._pcTimer = null; } /* 收款弹窗关闭即停止到账轮询 */
       document.getElementById('mask').style.display = 'none';
       document.querySelectorAll('.sheet').forEach(function (s) { s.style.display = 'none'; });
     },
@@ -1362,10 +1363,33 @@
     return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxName: p.wxName || '', aliName: p.aliName || '', link: p.link || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
   }
   function hasPayQr(p) { return !!(p.wxQr || p.aliQr); }
-  /* 收款确认弹窗：展示商家收款二维码/金额/订单说明，付款人扫码后点「我已完成支付」回调落库。
-   * 配置了二维码或收款链接任一即弹窗；都未配置时直接回调（保持原有模拟支付流程，行为完全兼容）。 */
+  /* ---------- 扫码收款弹窗（后端确认到账后才解锁「我已完成支付」） ----------
+   * 流程：打开弹窗 → pay/order/create 建待确认订单 → 每 3s 轮询 status；
+   *   pending：按钮禁用（灰显，点击提示「请等待支付结果确认」）
+   *   paid   ：后台确认到账 → 按钮解锁 → 回调 onDone（防重复提交）
+   *   expired：二维码过期/支付超时 → 提供「重新获取二维码」
+   *   查询连续 3 次失败：提示查询失败 + 重试按钮
+   *   后端不可达（纯静态部署兜底）：回退旧行为直接确认，避免收款被完全卡死 */
+  var PC_POLL_MS = 3000, PC_FAIL_LIMIT = 3;
+  function pcStopPoll() {
+    if (window._pcTimer) { clearInterval(window._pcTimer); window._pcTimer = null; }
+    window._pcReady = false; window._pcSubmitting = false; window._pcOrderNo = null;
+  }
+  function pcSetState(text, cls) {
+    var el = document.getElementById('pcState');
+    if (el) { el.textContent = text; el.className = 'pc-state' + (cls ? ' ' + cls : ''); }
+  }
+  function pcEnableDone() {
+    var b = document.getElementById('pcDone');
+    if (!b) return;
+    window._pcReady = true;
+    b.classList.remove('disabled');
+    b.textContent = '我已完成支付';
+  }
   function payCollect(opt, onDone) {
     var p = payInfoOf();
+    pcStopPoll(); /* 关闭上一单的轮询，避免重复提交 */
+    var offline = false; /* 后端不可达时的兜底模式 */
     if (!hasPayQr(p) && !p.link) { onDone('微信支付'); return; }
     var side = p.wxQr ? 'wx' : (p.aliQr ? 'ali' : '');
     window._pcSide = side || 'wx';
@@ -1386,17 +1410,84 @@
           '<div class="pc-qrname" id="pcQrName">' + esc(side === 'wx' ? (p.wxName || '微信收款') : (p.aliName || '支付宝收款')) + '</div>' +
           '<div class="pc-tip" id="pcTip">长按或截图 → 打开' + (side === 'wx' ? '微信' : '支付宝') + '扫一扫付款</div></div>'
         : '<div class="pc-qr"><div class="pc-tip" style="font-size:13px;color:var(--txt2);padding:8px 0">请点击上方收款链接完成付款<br>（链接已复制到剪贴板可粘贴打开）</div></div>') +
-      '<button class="btn-wechat" style="width:100%;margin-top:10px" id="pcDone">我已完成支付</button>' +
+      '<div class="pc-state" id="pcState">正在创建支付订单…</div>' +
+      '<button class="btn-wechat disabled" style="width:100%;margin-top:6px" id="pcDone">等待支付结果确认…</button>' +
+      '<button class="btn-ghost" style="width:100%;margin-top:8px;display:none" id="pcRetry">🔄 重新获取二维码</button>' +
       '</div>';
     var old = document.getElementById('collectSheet');
     if (old) old.remove();
     document.body.insertAdjacentHTML('beforeend', html);
     UI.openSheet('collectSheet');
-    document.getElementById('pcDone').onclick = function () {
+    var doneBtn = document.getElementById('pcDone');
+    doneBtn.onclick = function () {
+      if (!window._pcReady) { UI.toast('请等待支付结果确认'); return; }
+      if (window._pcSubmitting) return; /* 防重复提交 */
+      window._pcSubmitting = true;
+      doneBtn.classList.add('disabled');
+      doneBtn.textContent = '正在提交…';
       var m = window._pcSide === 'ali' ? '支付宝' : '微信支付';
+      if (window._pcTimer) { clearInterval(window._pcTimer); window._pcTimer = null; } /* 停轮询但保留 ready/submitting 状态 */
       UI.closeSheet();
       onDone(m);
     };
+    /* 创建订单并开始轮询（pcRetry 复用） */
+    var startOrder = function () {
+      window._pcReady = false; window._pcSubmitting = false;
+      doneBtn.classList.add('disabled');
+      doneBtn.textContent = '等待支付结果确认…';
+      document.getElementById('pcRetry').style.display = 'none';
+      pcSetState('正在创建支付订单…');
+      apiPost('/pay/order/create', { amount: opt.amount || 0, title: opt.title || '', kind: opt.kind || 'custom' }, function (r) {
+        if (!(r && r.ok && r.orderNo)) {
+          /* 后端不可达：兜底为旧模式（直接确认），避免收款流程被卡死 */
+          offline = true;
+          pcSetState('⚠️ 未连接收款服务 · 请支付后直接点击确认', 'warn');
+          pcEnableDone();
+          return;
+        }
+        window._pcOrderNo = r.orderNo;
+        pcSetState('等待付款确认中 · 支付后请稍候（' + Math.round((r.expireAt - Date.now()) / 60000) + ' 分钟内有效）');
+        var fails = 0;
+        var check = function () {
+          if (!window._pcOrderNo || document.getElementById('pcDone') !== doneBtn) { pcStopPoll(); return; } /* 弹窗已更换/关闭 */
+          apiPost('/pay/order/status', { orderNo: window._pcOrderNo }, function (s) {
+            if (document.getElementById('pcDone') !== doneBtn) { pcStopPoll(); return; }
+            if (!s || !s.ok) {
+              fails++;
+              if (fails >= PC_FAIL_LIMIT) {
+                pcStopPoll();
+                pcSetState('⚠️ 支付结果查询失败，请检查网络后重试', 'warn');
+                var rb = document.getElementById('pcRetry');
+                rb.style.display = 'block'; rb.textContent = '🔄 重新查询';
+                rb.onclick = function () { startOrder(); };
+              }
+              return;
+            }
+            fails = 0;
+            if (s.status === 'paid') {
+              pcStopPoll();
+              window._pcReady = true;
+              pcSetState('✅ 已确认到账，请点击下方按钮完成', 'ok');
+              pcEnableDone();
+            } else if (s.status === 'expired') {
+              pcStopPoll();
+              window._pcReady = false;
+              pcSetState('⚠️ 二维码已过期或支付超时', 'warn');
+              var rb2 = document.getElementById('pcRetry');
+              rb2.style.display = 'block'; rb2.textContent = '🔄 重新获取二维码';
+              rb2.onclick = function () { startOrder(); };
+            } else if (s.status === 'void') {
+              pcStopPoll();
+              pcSetState('该笔订单已作废，请联系收款方', 'warn');
+            }
+          });
+        };
+        check();
+        window._pcTimer = setInterval(check, PC_POLL_MS);
+      });
+    };
+    document.getElementById('pcRetry').onclick = function () { startOrder(); };
+    startOrder();
   }
 
   /* ================= 用户操作 ================= */
