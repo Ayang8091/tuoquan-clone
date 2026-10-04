@@ -88,7 +88,6 @@
     }
   }
   window.addEventListener('hashchange', applyShare);
-  window.routeShare = routeShare;   /* 供 share-card.js 生成分享卡片图使用 */
 
   function initWxSdk() {
     /* JS-SDK 官方 CDN，仅微信内需要 */
