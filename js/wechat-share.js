@@ -74,6 +74,8 @@
   function applyShare() {
     shareData = routeShare();
     shareData.link = SHARE.link || (location.origin + location.pathname + (location.hash || '#/')); /* 带当前页面路由 */
+    /* 保底：JS-SDK 未激活时，微信默认卡片的标题也取 document.title —— 按路由动态改标题即可对齐设计稿的标题部分 */
+    if (shareData.title) document.title = shareData.title;
     if (wxReady) {
       try {
         wx.updateAppMessageShareData(shareData);
