@@ -893,7 +893,7 @@
     renderConfig: function () {
       var c = S.get().config;
       var g1 = [['memberPrice', '年度会员价格（元/年）'], ['referralPrice', '默认引荐价格（元）'], ['memberCommissionRate', '会员佣金比例（%）'], ['salonCommissionRate', '沙龙佣金比例（%）'], ['lockDays', '锁粉有效期（天）'], ['refundHours', '引荐超时退款（小时）']];
-      var g2 = [['siteName', '站点名称'], ['domain', '站点域名'], ['organizer', '主办方'], ['salonHeld', '沙龙成果文案'], ['privatePool', '私域规模文案'], ['serviceWechat', '客服微信号'], ['wecomQRText', '企业微信码内容']];
+      var g2 = [['siteName', '站点名称'], ['domain', '站点域名'], ['organizer', '主办方'], ['salonHeld', '沙龙成果文案'], ['privatePool', '私域规模文案'], ['serviceWechat', '客服微信号'], ['wecomQRText', '企业微信码内容'], ['coopLink', '商务合作链接（海报二维码跳转，留空=站内申请页）']];
       function render(list, elId) {
         document.getElementById(elId).innerHTML = list.map(function (x) {
           return '<div class="cfg-item"><div class="ck">' + x[1] + '</div><input id="cfg_' + x[0] + '" value="' + esc(c[x[0]]) + '"></div>';

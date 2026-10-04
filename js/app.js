@@ -161,6 +161,7 @@
         .catch(function () { cb(null); });
     } catch (e) { cb(null); }
   }
+  window.apiPost = apiPost; /* 暴露给 distro / workbench 等模块使用 */
 
   /* 圈子发布：敏感信息打码（与后端 server.js maskSensitive 同一套规则，接口不可达时本地兜底） */
   function cclMask(text) {
@@ -740,7 +741,10 @@
       (!s.paid && !s.refunded ? '<button class="btn-primary" onclick="UI.go(\'#/pay/salon/' + s.evId + '\')">去支付' + (s.amount ? ' · ' + money(s.amount) : '') + '</button>' : '') +
       '<div class="ticket-group"><div class="ghead">添加销售客服，拉你进群</div>' +
       (dist && dist.wxQrStatus === 'approved'
-        ? '<div class="qbox">' + qrSVG('wxqr-' + dist.phone) + '</div><div class="gsub">长按识别二维码添加销售客服，并提供报名凭证截图，拉你进群</div>'
+        ? (dist.wxQr
+          ? '<img src="' + dist.wxQr + '" style="width:120px;height:120px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;margin:0 auto">' +
+            '<div class="gsub">长按识别二维码添加销售客服（' + esc(dist.name || '') + '），并提供报名凭证截图，拉你进群</div>'
+          : '<div class="qbox">' + qrSVG('wxqr-' + dist.phone) + '</div><div class="gsub">长按识别二维码添加销售客服，并提供报名凭证截图，拉你进群</div>')
         : '<div class="gsub">报名成功后请等待销售客服联系你进群</div>') + '</div>' +
       '</div></div></div>' +
       '<div class="bd-foot-hint">到场出示报名凭证入场 · 会员享专属价与优先锁座</div>';
@@ -1099,6 +1103,17 @@
   /* ================= 页面：商务合作海报 ================= */
   function pagePoster() {
     var u = S.get().user, c = S.get().config;
+    /* 二维码点击跳转：后台配置的商务合作链接（带锁粉参数）；未配置 → 站内合作申请页 */
+    var jump = c.coopLink ? (c.coopLink + (c.coopLink.indexOf('?') >= 0 ? '&' : '?') + 'd=' + u.inviteCode) : '';
+    var qrHtml = jump
+      ? '<div class="qr-wrap" style="cursor:pointer" onclick="window.open(\'' + jump.replace(/'/g, '%27') + '\',\'_blank\')">' +
+        '<div class="qbox">' + qrSVG('coop-' + u.inviteCode) + '</div>' +
+        '<div class="qt">扫码/点击填写合作意向</div><div class="qd">主理人 24 小时内联系你 · 不收费</div>' +
+        '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击二维码直达合作表单</div></div>'
+      : '<div class="qr-wrap" style="cursor:pointer" onclick="UI.go(\'#/coop-apply\')">' +
+        '<div class="qbox">' + qrSVG('coop-' + u.inviteCode) + '</div>' +
+        '<div class="qt">点击填写合作意向</div><div class="qd">主理人 24 小时内联系你 · 不收费</div>' +
+        '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击打开站内合作申请表</div></div>';
     phone.innerHTML = '' +
       '<div class="poster-page">' +
       '<div class="pp-t">商务合作海报</div>' +
@@ -1111,11 +1126,91 @@
       '<div class="po-step"><div class="n">1</div><div><div class="t">扫码填表</div><div class="d">30 秒，说清你是做什么的</div></div></div>' +
       '<div class="po-step"><div class="n">2</div><div><div class="t">主理人联系</div><div class="d">24 小时内，直接跟你谈</div></div></div>' +
       '<div class="po-step"><div class="n">3</div><div><div class="t">谈成即合作</div><div class="d">供货 / 分销 / 联名都能谈</div></div></div>' +
-      '<div class="qr-wrap"><div class="qbox">' + qrSVG('coop-' + u.inviteCode) + '</div>' +
-      '<div class="qt">扫码填写合作意向</div><div class="qd">主理人 24 小时内联系你 · 不收费</div></div>' +
+      qrHtml +
       '</div>' +
       '<button class="btn-plain" style="margin-top:14px" onclick="UI.go(\'#/distro\')">关闭</button>' +
       '</div>';
+  }
+
+  /* ---------- 海报通用外壳与二维码（分销专属海报） ---------- */
+  function posterJumpUrl(path) {
+    var u = S.get().user;
+    return location.origin + location.pathname + '?d=' + u.inviteCode + (path ? '#' + path : '');
+  }
+  function posterQrHtml(seed, jumpUrl, caption, sub) {
+    return '<div class="qr-wrap" style="cursor:pointer" onclick="window.open(\'' + jumpUrl + '\',\'_blank\')">' +
+      '<div class="qbox">' + qrSVG(seed) + '</div>' +
+      '<div class="qt">' + caption + '</div><div class="qd">' + sub + '</div>' +
+      '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击二维码可直接打开链接</div></div>';
+  }
+  function posterPageShell(barTitle, back, inner) {
+    phone.innerHTML = pagebar(barTitle, back) +
+      '<div class="poster-page">' +
+      '<div class="poster">' + inner + '</div>' +
+      '<button class="btn-plain" style="margin-top:14px" onclick="UI.go(\'#/distro\')">关闭</button>' +
+      '</div>';
+  }
+
+  /* ================= 页面：沙龙排期海报（分销专属） ================= */
+  function pagePosterSalons() {
+    var db = S.get(), c = db.config;
+    var rows = (db.salons || []).slice(0, 3).map(function (e, i) {
+      return '<div class="po-step"><div class="n">' + (i + 1) + '</div><div><div class="t">' + esc(e.title) + '</div>' +
+        '<div class="d">' + esc(e.date || '') + ' ' + esc(e.time || '') + ' · ' + esc(e.city || e.place || '') + '</div></div></div>';
+    }).join('');
+    posterPageShell('沙龙排期海报', '#/distro',
+      '<div class="po-k">' + esc(c.organizer.replace('市', '市 ')) + ' · 沙龙排期</div>' +
+      '<div class="po-big">AI 出海 · 老板沙龙</div>' +
+      '<div class="po-sub">' + esc(c.salonHeld || '') + '</div>' +
+      '<div class="po-sec">近期排期</div>' + rows +
+      '<div class="po-sec">扫码 / 点击查看全部沙龙并报名</div>' +
+      posterQrHtml('salons-' + db.user.inviteCode, posterJumpUrl('/salon'), '报名从速 · 扫码直达', '通过你的链接报名，自动锁定为你客户'));
+  }
+
+  /* ================= 页面：单期主题海报（扫码直达该期报名页） ================= */
+  function pagePosterSalonPick() {
+    var db = S.get();
+    var list = (db.salons || []).slice(0, 6);
+    phone.innerHTML = pagebar('选择沙龙期次', '#/distro') +
+      '<div class="ccl-list">' +
+      (list.length ? list.map(function (e) {
+        return '<div class="wb-card" onclick="UI.go(\'#/poster-salon/' + e.id + '\')">' +
+          '<div class="wc-top">' + esc(e.title) + '</div>' +
+          '<div class="wc-sub">' + esc(e.date || '') + ' ' + esc(e.time || '') + ' · ' + esc(e.place || '') + '</div></div>';
+      }).join('') : '<div class="empty-salon"><div class="ico">○</div><p>暂无沙龙排期</p></div>') + '</div>';
+  }
+  function pagePosterSalonOne(evId) {
+    var db = S.get();
+    var e = (db.salons || []).filter(function (x) { return x.id === evId; })[0];
+    if (!e) { phone.innerHTML = pagebar('单期海报', '#/distro') + '<div class="empty-salon">该期沙龙不存在或已下架</div>'; return; }
+    var price = db.user.member ? (e.mprice || 0) : (e.price || 0);
+    posterPageShell('单期主题海报', '#/poster-salon',
+      '<div class="po-k">' + esc(e.city || '深圳') + ' · 单期主题</div>' +
+      '<div class="po-big" style="font-size:26px">' + esc(e.title) + '</div>' +
+      '<div class="po-sub">' + esc(e.date || '') + ' ' + esc(e.time || '') + ' · ' + esc(e.place || '') + '</div>' +
+      '<div class="po-sec">本期看点</div>' +
+      '<div class="po-step"><div class="n">1</div><div><div class="t">老板资源对接</div><div class="d">供应链 / 渠道 / 流量现场谈</div></div></div>' +
+      '<div class="po-step"><div class="n">2</div><div><div class="t">门票</div><div class="d">' + (price ? '¥' + price + (db.user.member ? '（会员价）' : '') : '会员免费') + '</div></div></div>' +
+      '<div class="po-sec">扫码 / 点击直达本期报名页</div>' +
+      posterQrHtml('salon-' + evId + '-' + db.user.inviteCode, posterJumpUrl('/pay/salon/' + evId), '名额有限 · 扫码报名', '通过你的链接报名，自动锁定为你客户'));
+  }
+
+  /* ================= 页面：探访老板海报（扫码看视频合集） ================= */
+  function pagePosterBoss() {
+    var db = S.get(), c = db.config;
+    var withVideo = (db.bosses || []).filter(function (b) { return b.videoUrl; });
+    var list = (withVideo.length ? withVideo : (db.bosses || [])).slice(0, 3);
+    var rows = list.map(function (b, i) {
+      return '<div class="po-step"><div class="n">' + (i + 1) + '</div><div><div class="t">' + esc(b.name) + ' · ' + esc(b.title || '') + '</div>' +
+        '<div class="d">' + esc(b.tag || b.industry || '') + (b.videoUrl ? ' · 已拍摄探访视频' : '') + '</div></div></div>';
+    }).join('');
+    posterPageShell('探访老板海报', '#/distro',
+      '<div class="po-k">' + esc(c.organizer.replace('市', '市 ')) + ' · 探访实录</div>' +
+      '<div class="po-big">探访 AI 老板</div>' +
+      '<div class="po-sub">真实老板 · 真实资源 · 视频合集持续更新</div>' +
+      '<div class="po-sec">本期探访</div>' + rows +
+      '<div class="po-sec">扫码 / 点击观看探访视频合集</div>' +
+      posterQrHtml('boss-' + db.user.inviteCode, posterJumpUrl('/boss'), '看老板都在聊什么', '通过你的链接进入，自动锁定为你客户'));
   }
 
   /* ================= 页面：圈子 ================= */
@@ -1318,6 +1413,9 @@
     'verify': pageVerify,
     'share': pageShare,
     'poster': pagePoster,
+    'poster-salons': pagePosterSalons,
+    'poster-salon': pagePosterSalonPick,
+    'poster-boss': pagePosterBoss,
     'login': pageLogin
   };
 
@@ -1341,6 +1439,7 @@
     else if (name === 'refer-ticket' && seg[1]) { pageReferTicket(seg[1]); }
     else if (name === 'my-pay' && seg[1]) { pageMyPay(seg[1]); }
     else if (name === 'pay' && seg[1]) { pagePayForm(seg[1], seg[2]); }
+    else if (name === 'poster-salon' && seg[1]) { pagePosterSalonOne(seg[1]); }
     else if (routes[h]) { routes[h](); }
     else { pageSalon(); }
     if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);

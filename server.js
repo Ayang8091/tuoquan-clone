@@ -119,23 +119,30 @@ function payWrite(p) {
   fs.writeFileSync(PAY_FILE, JSON.stringify(p, null, 2));
   return p;
 }
-/* dataURL 落盘：校验格式/体积 → base64 解码 → uploads/ 下生成文件 → 返回可访问 URL */
-function payUpload(b) {
-  const kind = (b.kind === 'ali') ? 'ali' : 'wx';
-  const m = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dataUrl || ''));
+/* dataURL 落盘：校验格式/体积 → base64 解码 → uploads/ 下生成文件 → 返回可访问 URL
+ * prefix 决定文件名前缀（payqr- 收款码 / img- 通用图片如企业微信码） */
+function dataUrlSave(dataUrl, prefix) {
+  const m = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
   if (!m) return { ok: false, msg: '仅支持 PNG/JPG/WebP 图片' };
   const buf = Buffer.from(m[2], 'base64');
   if (buf.length < 100) return { ok: false, msg: '图片内容为空或已损坏' };
   if (buf.length > 800 * 1024) return { ok: false, msg: '图片过大（上限 800KB），请压缩后重试' };
   const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-  const name = 'payqr-' + kind + '-' + Date.now() + '.' + ext;
+  const name = (prefix === 'payqr-' ? 'payqr-' : 'img-') + Date.now() + '-' + Math.random().toString(36).slice(2, 6) + '.' + ext;
   fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
-  /* 清理同名旧二维码（同一 kind 只保留最近 5 张，避免目录无限膨胀） */
+  /* 同前缀旧文件只保留最近 8 张，避免目录无限膨胀 */
   try {
-    const olds = fs.readdirSync(UPLOAD_DIR).filter((f) => f.startsWith('payqr-' + kind + '-')).sort().reverse();
-    olds.slice(5).forEach((f) => { try { fs.unlinkSync(path.join(UPLOAD_DIR, f)); } catch (e) { /* noop */ } });
+    const olds = fs.readdirSync(UPLOAD_DIR).filter((f) => f.startsWith(prefix)).sort().reverse();
+    olds.slice(8).forEach((f) => { try { fs.unlinkSync(path.join(UPLOAD_DIR, f)); } catch (e) { /* noop */ } });
   } catch (e) { /* noop */ }
-  return { ok: true, url: '/uploads/' + name, kind: kind, size: buf.length };
+  return { ok: true, url: '/uploads/' + name, size: buf.length };
+}
+function payUpload(b) {
+  const kind = (b.kind === 'ali') ? 'ali' : 'wx';
+  const r = dataUrlSave(b.dataUrl, 'payqr-');
+  if (!r.ok) return r;
+  r.kind = kind;
+  return r;
 }
 function paySanitize(b) {
   const p = payRead();
@@ -199,7 +206,13 @@ const apiHandlers = {
   /* 支付收款信息：上传收款二维码（dataURL → uploads 文件 → 可访问 URL） */
   'pay/upload': async (body, res) => {
     const r = payUpload(body);
-    json(res, 200, r.ok ? Object.assign({ source: 'server' }, r) : Object.assign({ source: 'server' }, r));
+    json(res, 200, Object.assign({ source: 'server' }, r));
+  },
+
+  /* 通用图片上传（企业微信码等）：dataURL → uploads/img-*.jpg → 可访问 URL */
+  'img/upload': async (body, res) => {
+    const r = dataUrlSave(body.dataUrl, 'img-');
+    json(res, 200, Object.assign({ source: 'server' }, r));
   },
 
   /* 支付收款信息：保存（后台填写弹窗提交） */

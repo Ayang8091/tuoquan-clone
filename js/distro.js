@@ -67,6 +67,9 @@
       var coopPending = coopMine.filter(function (l) { return l.status === 'new'; }).length;
       var coopDeal = coopMine.filter(function (l) { return l.status === 'deal'; }).length;
       var coopCm = sum(coopMine, 'commission');
+      /* 企业微信码：本机优先，云端 distTeam 记录兜底（跨设备同步） */
+      var myTeam = (db.distTeam || []).filter(function (m) { return m.phone === u.phone || m.inviteCode === u.inviteCode; })[0] || {};
+      var wecomQr = u.wecomQr || myTeam.wxQr || '';
 
       var bodyHtml =
         '<div class="distro-hero"><div class="h1">您好，' + esc(u.nickname || '分销员') + '</div>' +
@@ -87,11 +90,24 @@
         item('🤝', '我的合作线索', coopDeal ? '已合作 ' + coopDeal + ' 条 · 合作佣金 ' + money(coopCm) : '客户扫你的合作海报提交，谈成后给你分佣', '#/distro-coop') +
         '</div></div>' +
 
+        '<div class="d-block" style="background:#EEF3FF"><div class="wt" style="color:#3b5bdb">📇 我的企业微信码</div>' +
+        (wecomQr
+          ? '<div style="display:flex;gap:14px;align-items:center;margin:8px 0">' +
+            '<img src="' + wecomQr + '" style="width:84px;height:84px;object-fit:contain;border:1px solid #dbe4ff;border-radius:10px;background:#fff">' +
+            '<div style="font-size:12px;color:#1d2129;line-height:1.8">✓ 已通过 · 客户凭证可见此码<br><span style="color:#86909c;font-size:11px">客户扫码即可加上你的企业微信</span></div></div>' +
+            '<button class="wb-btn ghost" onclick="Distro.upWecomQr()">🔄 更换二维码</button>'
+          : '<div class="wb-note">上传你的企业微信二维码，客户在凭证页扫码即可加上你（审核通过后可见）。</div>' +
+            '<button class="wb-btn primary" onclick="Distro.upWecomQr()">📤 上传企业微信码</button>') +
+        '</div>' +
+
         '<div class="d-block" style="background:#E1F5EE"><div class="wt" style="color:#0F6E56">🔒 我的专属链接（锁粉）</div>' +
         '<div class="wb-note">客户首次点你的链接进入即锁定到你名下，<b>' + lockTxt() + '</b>——他买任何产品（会员 / 沙龙）佣金都归你</div>' +
         '<div class="link-box" onclick="UI.copy(\'' + link + '\')">' + link + ' · 点击复制</div>' +
-        '<div class="wb-btns"><button class="wb-btn ghost" onclick="UI.go(\'#/share\')">↗ 生成转发卡片</button>' +
-        '<button class="wb-btn ghost" onclick="UI.go(\'#/poster\')">🤝 生成商务合作海报</button></div></div>' +
+        '<div class="wb-btns"><button class="wb-btn ghost" onclick="UI.go(\'#/share\')">↗ 生成转发卡片（点开即锁粉）</button>' +
+        '<button class="wb-btn ghost" onclick="UI.go(\'#/poster-salons\')">📅 生成沙龙排期海报</button>' +
+        '<button class="wb-btn ghost" onclick="UI.go(\'#/poster-salon\')">🎯 生成单期主题海报（扫码直达报名页）</button>' +
+        '<button class="wb-btn ghost" onclick="UI.go(\'#/poster\')">🤝 生成商务合作海报（扫码锁粉 + 直达合作申请）</button>' +
+        '<button class="wb-btn ghost" onclick="UI.go(\'#/poster-boss\')">🎬 生成探访老板海报（扫码看视频合集）</button></div></div>' +
 
         '<div class="member-tip">待结算 = 订单已记录 · 结算中 = 老板已确认、等待打款 · 已结算 = 打款完成</div>';
       shell({ title: '分销中心', back: '#/me', body: bodyHtml });
@@ -99,6 +115,23 @@
     copyLink: function () {
       var u = S.get().user;
       UI.copy(location.origin + location.pathname + '?d=' + u.inviteCode);
+    },
+    /* 上传/更换企业微信码：ImgUp 统一管线 → /api/img/upload 落盘换 URL → 本机 user + 云端 distTeam 同步 */
+    upWecomQr: function () {
+      ImgUp.pick({ ratio: 1, max: 600, targetKB: 150 }, function (urls) {
+        if (!urls || !urls.length) return;
+        apiPost('/img/upload', { dataUrl: urls[0] }, function (r) {
+          var db = S.get();
+          var url = (r && r.ok && r.url) ? r.url : urls[0]; /* 服务端不可达时本地 dataURL 兜底 */
+          db.user.wecomQr = url;
+          /* 同步到分销团队记录（云端 distTeam 域，后台/客户侧可读） */
+          var me = (db.distTeam || []).filter(function (m) { return m.phone === db.user.phone || m.inviteCode === db.user.inviteCode; })[0];
+          if (me) { me.wxQr = url; me.wxQrStatus = 'approved'; }
+          S.save();
+          D.home();
+          UI.toast(r && r.ok ? '企业微信码已更新（已通过 · 客户凭证可见）' : '企业微信码已保存在本机');
+        });
+      });
     },
 
     /* ==================== 普通用户：推广介绍 + 申请 ==================== */
