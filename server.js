@@ -110,7 +110,7 @@ const DATA_DIR = path.join(ROOT, 'data');
 const PAY_FILE = path.join(DATA_DIR, 'payinfo.json');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const PAY_DEFAULT = { wxQr: '', aliQr: '', wxName: '', aliName: '', link: '', amount: 0, note: '', updatedAt: '' };
+const PAY_DEFAULT = { wxQr: '', aliQr: '', wxName: '', aliName: '', link: '', amount: 0, note: '', updatedAt: '', wxQrData: '', aliQrData: '' };
 function payRead() {
   try { return Object.assign({}, PAY_DEFAULT, JSON.parse(fs.readFileSync(PAY_FILE, 'utf8'))); }
   catch (e) { return Object.assign({}, PAY_DEFAULT); }
@@ -157,6 +157,10 @@ function paySanitize(b) {
   p.link = /^https?:\/\/\S+$/i.test(link) ? link : '';
   p.amount = Math.max(0, +b.amount || 0);
   p.note = str(b.note, 200);
+  /* 收款码 dataURL 冗余（防部署沙箱 uploads/ 丢失后图片 404）：仅接受合法 data:image，上限 1.2MB 字符 */
+  const isData = (v) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 1.2e6;
+  p.wxQrData = isData(String(b.wxQrData || '')) ? b.wxQrData : '';
+  p.aliQrData = isData(String(b.aliQrData || '')) ? b.aliQrData : '';
   return p;
 }
 
@@ -214,6 +218,14 @@ const apiHandlers = {
   'img/upload': async (body, res) => {
     const r = dataUrlSave(body.dataUrl, 'img-');
     json(res, 200, Object.assign({ source: 'server' }, r));
+  },
+
+  /* uploads 文件清单（部署前数据回捞用：把线上图片拉回本地目录，随下一次部署带上新沙箱） */
+  'uploads/list': async (body, res) => {
+    try {
+      const files = fs.readdirSync(UPLOAD_DIR).filter((f) => /^(payqr-|img-)[\w.-]+$/.test(f));
+      json(res, 200, { ok: true, files });
+    } catch (e) { json(res, 200, { ok: true, files: [] }); }
   },
 
   /* 支付收款信息：保存（后台填写弹窗提交） */

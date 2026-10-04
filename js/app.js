@@ -770,7 +770,7 @@
       '<div class="ticket-group"><div class="ghead">添加销售客服，拉你进群</div>' +
       (dist && dist.wxQrStatus === 'approved'
         ? (dist.wxQr
-          ? '<img src="' + dist.wxQr + '" style="width:120px;height:120px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;margin:0 auto">' +
+          ? (function () { window.__qrDataMap = window.__qrDataMap || {}; window.__qrDataMap['dist-' + dist.phone] = dist.wxQrData || ''; return '<img src="' + dist.wxQr + '" data-qrfb="dist-' + esc(dist.phone) + '" onerror="qrFallback(this)" style="width:120px;height:120px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;margin:0 auto">'; })() +
             '<div class="gsub">长按识别二维码添加销售客服（' + esc(dist.name || '') + '），并提供报名凭证截图，拉你进群</div>'
           : '<div class="qbox">' + wxQrImgHtml('wxqr-' + dist.phone) + '</div><div class="gsub">长按识别二维码添加销售客服，并提供报名凭证截图，拉你进群</div>')
         : '<div class="gsub">报名成功后请等待销售客服联系你进群</div>') + '</div>' +
@@ -1511,9 +1511,29 @@
   /* ================= 微信/支付宝收款（配置读取 + 收款确认弹窗） ================= */
   function payInfoOf(db) {
     var p = ((db || S.get()).config || {}).payInfo || {};
-    return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxName: p.wxName || '', aliName: p.aliName || '', link: p.link || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
+    return { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxQrData: p.wxQrData || '', aliQrData: p.aliQrData || '', wxName: p.wxName || '', aliName: p.aliName || '', link: p.link || '', amount: +p.amount || 0, note: p.note || '', updatedAt: p.updatedAt || '' };
   }
-  function hasPayQr(p) { return !!(p.wxQr || p.aliQr); }
+  function hasPayQr(p) { return !!(p.wxQr || p.aliQr || p.wxQrData || p.aliQrData); }
+  /* 图片挂掉时回退到云端冗余的 dataURL（防部署沙箱 uploads/ 丢失后 404） */
+  window.qrFallback = function (img) {
+    var map = window.__qrDataMap || {};
+    var d = map[img.getAttribute('data-qrfb') || ''];
+    if (d) { img.onerror = null; img.src = d; }
+  };
+  /* 扫码收款订单写入云端域（部署重置沙箱磁盘后台账不丢） */
+  function poSyncLocal(orderNo, patch) {
+    var db = S.get();
+    if (!Array.isArray(db.payorders)) db.payorders = [];
+    var o = db.payorders.filter(function (x) { return x.orderNo === orderNo; })[0];
+    if (!o) {
+      o = { orderNo: orderNo, kind: 'custom', title: '', amount: 0, status: 'pending', createdAt: Date.now(), expireAt: 0, paidAt: 0 };
+      db.payorders.unshift(o);
+    }
+    Object.assign(o, patch);
+    if (db.payorders.length > 200) db.payorders = db.payorders.slice(0, 200);
+    S.save();
+  }
+  window.poSyncLocal = poSyncLocal;
   /* ---------- 扫码收款弹窗（后端确认到账后才解锁「我已完成支付」） ----------
    * 流程：打开弹窗 → pay/order/create 建待确认订单 → 每 3s 轮询 status；
    *   pending：按钮禁用（灰显，点击提示「请等待支付结果确认」）
@@ -1568,6 +1588,12 @@
     var old = document.getElementById('collectSheet');
     if (old) old.remove();
     document.body.insertAdjacentHTML('beforeend', html);
+    /* 收款码 404 时回退云端冗余 dataURL */
+    var pcImg = document.getElementById('pcQrImg');
+    if (pcImg) {
+      var pcData = side === 'wx' ? p.wxQrData : p.aliQrData;
+      if (pcData) pcImg.onerror = function () { pcImg.onerror = null; pcImg.src = pcData; };
+    }
     UI.openSheet('collectSheet');
     var doneBtn = document.getElementById('pcDone');
     doneBtn.onclick = function () {
@@ -1597,6 +1623,8 @@
           return;
         }
         window._pcOrderNo = r.orderNo;
+        /* 订单同步云端域（部署重置沙箱磁盘后台账不丢） */
+        poSyncLocal(r.orderNo, { kind: opt.kind || 'custom', title: opt.title || '', amount: opt.amount || 0, status: 'pending', expireAt: r.expireAt || 0 });
         pcSetState('等待付款确认中 · 支付后请稍候（' + Math.round((r.expireAt - Date.now()) / 60000) + ' 分钟内有效）');
         var fails = 0;
         var check = function () {
@@ -1618,17 +1646,20 @@
             if (s.status === 'paid') {
               pcStopPoll();
               window._pcReady = true;
+              poSyncLocal(window._pcOrderNo, { status: 'paid', paidAt: Date.now() });
               pcSetState('✅ 已确认到账，请点击下方按钮完成', 'ok');
               pcEnableDone();
             } else if (s.status === 'expired') {
               pcStopPoll();
               window._pcReady = false;
+              poSyncLocal(window._pcOrderNo, { status: 'expired' });
               pcSetState('⚠️ 二维码已过期或支付超时', 'warn');
               var rb2 = document.getElementById('pcRetry');
               rb2.style.display = 'block'; rb2.textContent = '🔄 重新获取二维码';
               rb2.onclick = function () { startOrder(); };
             } else if (s.status === 'void') {
               pcStopPoll();
+              poSyncLocal(window._pcOrderNo, { status: 'void' });
               pcSetState('该笔订单已作废，请联系收款方', 'warn');
             }
           });

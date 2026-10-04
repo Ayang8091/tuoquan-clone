@@ -20,7 +20,8 @@
   var CONTENT_SCOPES = [
     'config', 'bosses', 'salons', 'notices', 'posts',
     'banners', 'vipPage', 'signups', 'commissions', 'referrals',
-    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList'
+    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList',
+    'payorders'  /* 扫码收款订单台账（云端为主，磁盘 data/payorders.json 仅镜像——部署会重置沙箱磁盘） */
   ];
 
   function uid(prefix) {
@@ -330,7 +331,10 @@
       ],
 
       /* ---------- 分销申请（待审） ---------- */
-      distApplyList: []
+      distApplyList: [],
+
+      /* ---------- 扫码收款订单台账（云端域，磁盘仅镜像） ---------- */
+      payorders: []
     };
   }
 

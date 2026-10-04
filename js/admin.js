@@ -935,11 +935,19 @@
       var p = S.get().config.payInfo || {};
       var el = document.getElementById('payInfoCard');
       if (!el) return;
-      var qr = function (u) { return u ? '<img src="' + esc(u) + '" style="width:64px;height:64px;object-fit:contain;border:1px solid #e5e6eb;border-radius:8px;background:#fff">' : '<span style="display:inline-block;width:64px;height:64px;border:1px dashed #e5e6eb;border-radius:8px;line-height:64px;text-align:center;color:#86909c;font-size:12px">未上传</span>'; };
+      /* 图片 404 回退（部署丢 uploads 后仍可显示） */
+      window.__qrDataMap = window.__qrDataMap || {};
+      window.__qrDataMap['pay-wx'] = p.wxQrData || '';
+      window.__qrDataMap['pay-ali'] = p.aliQrData || '';
+      if (!window.qrFallback) window.qrFallback = function (img) {
+        var d = (window.__qrDataMap || {})[img.getAttribute('data-qrfb') || ''];
+        if (d) { img.onerror = null; img.src = d; }
+      };
+      var qr = function (u, fb) { return u ? '<img src="' + esc(u) + '" data-qrfb="' + fb + '" onerror="qrFallback(this)" style="width:64px;height:64px;object-fit:contain;border:1px solid #e5e6eb;border-radius:8px;background:#fff">' : '<span style="display:inline-block;width:64px;height:64px;border:1px dashed #e5e6eb;border-radius:8px;line-height:64px;text-align:center;color:#86909c;font-size:12px">未上传</span>'; };
       el.innerHTML =
         '<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">' +
-        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">微信收款码</div>' + qr(p.wxQr) + '</div>' +
-        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">支付宝收款码</div>' + qr(p.aliQr) + '</div>' +
+        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">微信收款码</div>' + qr(p.wxQr, 'pay-wx') + '</div>' +
+        '<div style="text-align:center"><div style="font-size:12px;color:#4e5969;margin-bottom:6px">支付宝收款码</div>' + qr(p.aliQr, 'pay-ali') + '</div>' +
         '<div style="font-size:13px;color:#1d2129;line-height:2">收款人：微信 ' + esc(p.wxName || '—') + ' · 支付宝 ' + esc(p.aliName || '—') + '<br>' +
         '收款链接：' + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" style="color:#165dff;word-break:break-all">' + esc(p.link) + '</a>' : '—') + '<br>' +
         '默认金额：' + (p.amount ? '¥' + p.amount : '按订单金额') + '<br>订单说明：' + esc(p.note || '—') +
@@ -948,7 +956,7 @@
     /* 填写收款信息弹窗：上传收款二维码（/api/pay/upload 落盘返回可访问 URL）+ 金额/说明 */
     openPayInfo: function () {
       var p = S.get().config.payInfo || {};
-      window._payTemp = { wxQr: p.wxQr || '', aliQr: p.aliQr || '' };
+      window._payTemp = { wxQr: p.wxQr || '', aliQr: p.aliQr || '', wxQrData: p.wxQrData || '', aliQrData: p.aliQrData || '' };
       var qrBox = function (kind, label) {
         var u = window._payTemp[kind + 'Qr'];
         return '<div style="flex:1;text-align:center"><div style="font-size:13px;margin-bottom:6px">' + label + '</div>' +
@@ -972,6 +980,7 @@
         if (!urls || !urls.length) return;
         var url = urls[0];
         window._payTemp[key] = url;
+        window._payTemp[key + 'Data'] = url; /* dataURL 冗余（云端 config.payInfo，防部署丢 uploads 后 404） */
         var pv = document.getElementById('pvPay' + kind);
         if (pv) pv.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:100%;object-fit:contain">';
         fetch('/api/pay/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: kind === 'Wx' ? 'wx' : 'ali', dataUrl: url }) })
@@ -991,6 +1000,7 @@
       var t = window._payTemp || {};
       var payload = {
         wxQr: t.wxQr || '', aliQr: t.aliQr || '',
+        wxQrData: t.wxQrData || '', aliQrData: t.aliQrData || '',
         wxName: (document.getElementById('mPayWxName').value || '').trim(),
         aliName: (document.getElementById('mPayAliName').value || '').trim(),
         link: (document.getElementById('mPayLink').value || '').trim(),
@@ -1025,28 +1035,44 @@
       S.save(); toast('配置已保存，用户端实时生效');
     },
 
-    /* ---------- 扫码收款确认（待到账订单台账） ---------- */
+    /* ---------- 扫码收款确认（待到账订单台账） ----------
+     * 主数据 = 云端域 db.payorders（部署重置沙箱磁盘后台账不丢）；server 磁盘为镜像，合并展示。 */
     renderPayOrders: function () {
       var el = document.getElementById('payOrderTable');
       if (!el) return;
+      var render = function (list) {
+        var st = { pending: ['<span style="color:#ff7d00">待确认</span>', ''], paid: ['<span style="color:#00b42a">已到账</span>', ''], expired: ['<span style="color:#86909c">已过期</span>', ' disabled'], void: ['<span style="color:#86909c">已作废</span>', ' disabled'] };
+        el.innerHTML = '<tr><th>订单号</th><th>内容</th><th>金额</th><th>创建时间</th><th>有效期至</th><th>状态</th><th>操作</th></tr>' +
+          (list.length ? list.map(function (o) {
+            var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
+            var s = st[o.status] || [o.status, ' disabled'];
+            return '<tr><td>' + esc(o.orderNo) + '</td><td>' + esc(o.title || o.kind) + '</td><td>¥' + o.amount + '</td>' +
+              '<td>' + fmt(o.createdAt) + '</td><td>' + fmt(o.expireAt) + '</td><td>' + s[0] + '</td>' +
+              '<td>' + (o.status === 'pending' ? '<button class="btn sm primary"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'paid\')">✓ 确认到账</button> ' +
+                '<button class="btn sm danger"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'void\')">作废</button>' : '—') + '</td></tr>';
+          }).join('') : '<tr><td colspan="7" style="text-align:center;color:#86909c;padding:18px 0">暂无扫码收款订单（用户端打开收款弹窗后生成）</td></tr>');
+      };
+      var merged = (S.get().payorders || []).slice();
       fetch('/api/pay/order/list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          var list = ((d && d.orders) || []).slice(0, 30);
-          var st = { pending: ['<span style="color:#ff7d00">待确认</span>', ''], paid: ['<span style="color:#00b42a">已到账</span>', ''], expired: ['<span style="color:#86909c">已过期</span>', ' disabled'], void: ['<span style="color:#86909c">已作废</span>', ' disabled'] };
-          el.innerHTML = '<tr><th>订单号</th><th>内容</th><th>金额</th><th>创建时间</th><th>有效期至</th><th>状态</th><th>操作</th></tr>' +
-            (list.length ? list.map(function (o) {
-              var fmt = function (t) { if (!t) return '—'; var d = new Date(t); return ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
-              var s = st[o.status] || [o.status, ' disabled'];
-              return '<tr><td>' + esc(o.orderNo) + '</td><td>' + esc(o.title || o.kind) + '</td><td>¥' + o.amount + '</td>' +
-                '<td>' + fmt(o.createdAt) + '</td><td>' + fmt(o.expireAt) + '</td><td>' + s[0] + '</td>' +
-                '<td>' + (o.status === 'pending' ? '<button class="btn sm primary"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'paid\')">✓ 确认到账</button> ' +
-                  '<button class="btn sm danger"' + s[1] + ' onclick="Admin.confirmPayOrder(\'' + o.orderNo + '\',\'void\')">作废</button>' : '—') + '</td></tr>';
-            }).join('') : '<tr><td colspan="7" style="text-align:center;color:#86909c;padding:18px 0">暂无扫码收款订单（用户端打开收款弹窗后生成）</td></tr>');
+          var seen = {};
+          merged.forEach(function (o) { seen[o.orderNo] = 1; });
+          ((d && d.orders) || []).forEach(function (o) { if (!seen[o.orderNo]) merged.push(o); });
+          merged.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+          render(merged.slice(0, 30));
         })
-        .catch(function () { el.innerHTML = '<tr><td style="color:#86909c">收款服务不可达</td></tr>'; });
+        .catch(function () { render(merged.slice(0, 30)); }); /* 收款服务不可达：仍显示云端域台账 */
     },
     confirmPayOrder: function (orderNo, action) {
+      /* 云端域先行（部署不丢），server 磁盘镜像同步（轮询状态机需要） */
+      var db = S.get();
+      var o = (db.payorders || []).filter(function (x) { return x.orderNo === orderNo; })[0];
+      if (o) {
+        if (action === 'paid') { o.status = 'paid'; o.paidAt = Date.now(); }
+        else if (action === 'void') { o.status = 'void'; }
+        S.save();
+      }
       fetch('/api/pay/order/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderNo: orderNo, action: action }) })
         .then(function (r) { return r.json(); })
         .then(function (d) {
@@ -1055,7 +1081,10 @@
           } else toast((d && d.msg) || '操作失败');
           Admin.renderPayOrders();
         })
-        .catch(function () { toast('收款服务不可达'); });
+        .catch(function () {
+          toast(action === 'paid' ? '已确认到账（云端）· 收款服务未同步' : '订单已作废（云端）');
+          Admin.renderPayOrders();
+        });
     },
 
     closeModal: closeModal,

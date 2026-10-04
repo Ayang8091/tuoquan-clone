@@ -11,7 +11,8 @@
   var SCOPES = [
     'config', 'bosses', 'salons', 'notices', 'posts',
     'banners', 'vipPage', 'signups', 'commissions', 'referrals',
-    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList'
+    'coopLeads', 'distTeam', 'members', 'upsells', 'distApplyList',
+    'payorders'  /* 与 data.js CONTENT_SCOPES 保持一致 */
   ];
 
   var _cloud = null;

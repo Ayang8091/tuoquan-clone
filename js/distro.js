@@ -70,6 +70,8 @@
       /* 企业微信码：本机优先，云端 distTeam 记录兜底（跨设备同步） */
       var myTeam = (db.distTeam || []).filter(function (m) { return m.phone === u.phone || m.inviteCode === u.inviteCode; })[0] || {};
       var wecomQr = u.wecomQr || myTeam.wxQr || '';
+      /* 图片 404 回退：云端 distTeam 冗余的 dataURL（防部署沙箱 uploads/ 丢失） */
+      if (myTeam.wxQrData) { window.__qrDataMap = window.__qrDataMap || {}; window.__qrDataMap['dist-' + (u.phone || '')] = myTeam.wxQrData; }
 
       var bodyHtml =
         '<div class="distro-hero"><div class="h1">您好，' + esc(u.nickname || '分销员') + '</div>' +
@@ -93,7 +95,7 @@
         '<div class="d-block" style="background:#EEF3FF"><div class="wt" style="color:#3b5bdb">📇 我的企业微信码</div>' +
         (wecomQr
           ? '<div style="display:flex;gap:14px;align-items:center;margin:8px 0">' +
-            '<img src="' + wecomQr + '" style="width:84px;height:84px;object-fit:contain;border:1px solid #dbe4ff;border-radius:10px;background:#fff">' +
+            '<img src="' + wecomQr + '" data-qrfb="dist-' + esc(u.phone || '') + '" onerror="window.qrFallback && qrFallback(this)" style="width:84px;height:84px;object-fit:contain;border:1px solid #dbe4ff;border-radius:10px;background:#fff">' +
             '<div style="font-size:12px;color:#1d2129;line-height:1.8">✓ 已通过 · 客户凭证可见此码<br><span style="color:#86909c;font-size:11px">客户扫码即可加上你的企业微信</span></div></div>' +
             '<button class="wb-btn ghost" onclick="Distro.upWecomQr()">🔄 更换二维码</button>'
           : '<div class="wb-note">上传你的企业微信二维码，客户在凭证页扫码即可加上你（审核通过后可见）。</div>' +
@@ -126,7 +128,7 @@
           db.user.wecomQr = url;
           /* 同步到分销团队记录（云端 distTeam 域，后台/客户侧可读） */
           var me = (db.distTeam || []).filter(function (m) { return m.phone === db.user.phone || m.inviteCode === db.user.inviteCode; })[0];
-          if (me) { me.wxQr = url; me.wxQrStatus = 'approved'; }
+          if (me) { me.wxQr = url; me.wxQrData = urls[0]; me.wxQrStatus = 'approved'; } /* wxQrData 冗余：部署丢 uploads 后仍可回显 */
           S.save();
           D.home();
           UI.toast(r && r.ok ? '企业微信码已更新（已通过 · 客户凭证可见）' : '企业微信码已保存在本机');
