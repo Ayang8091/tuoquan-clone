@@ -74,6 +74,34 @@
     }
     return '<svg viewBox="0 0 100 100" width="' + (size || '100%') + '" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#fff"/>' + rects + '</svg>';
   }
+  /* 真实二维码（qrcode-generator，M 级容错 15%，4 模块静默区，SVG 矢量不模糊） */
+  function qrUrlSvg(content, size) {
+    if (!window.qrcode) return qrSVG('fallback-' + content, size);
+    try {
+      var qr = window.qrcode(0, 'M');           /* type 0 = 自动选最小版本，内容长时自动升版 */
+      qr.addData(String(content));
+      qr.make();
+      var n = qr.getModuleCount(), m = 4, cell = 100 / (n + 2 * m), rects = '';
+      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) {
+        if (qr.isDark(r, c)) {
+          /* 模块尺寸 +0.02% 消除缩放时的白色发丝缝 */
+          rects += '<rect x="' + ((c + m) * cell).toFixed(3) + '%" y="' + ((r + m) * cell).toFixed(3) +
+            '%" width="' + (cell + 0.02).toFixed(3) + '%" height="' + (cell + 0.02).toFixed(3) + '%" fill="#000"/>';
+        }
+      }
+      return '<svg viewBox="0 0 100 100" width="' + (size || '100%') + '" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#fff"/>' + rects + '</svg>';
+    } catch (e) { return qrSVG('fallback-' + content, size); }
+  }
+  window.qrUrlSvg = qrUrlSvg;
+
+  /* 加微信类二维码：微信号文本无法合成真实微信二维码 → 后台(config.serviceWechatQr)上传真实码图片则展示真实图，未上传时兜底装饰图案 */
+  function wxQrImgHtml(seed) {
+    var url = (S.get().config || {}).serviceWechatQr;
+    if (url) return '<img src="' + esc(url) + '" alt="客服微信二维码" style="width:100%;display:block">';
+    return qrSVG(seed);
+  }
+  window.wxQrImgHtml = wxQrImgHtml;
+
   window.qrSVG = qrSVG;
 
   var ICONS = {
@@ -617,7 +645,7 @@
       /* 第 10 屏 · 支付成功（已开通时显示） */
       (isMember ? '<div class="mp-sec"><div class="mp-h2" style="text-align:center">✓ 恭喜！会员开通成功</div>' +
         '<div class="mp-p" style="text-align:center">您已成功开通【AI 出海年度老板会员】请完成下面两步，解锁全部会员权益</div>' +
-        '<div class="vp-step"><div class="st">第一步 · 添加主理人微信</div><div class="qbox">' + qrSVG('advisor-' + c.serviceWechat) + '</div>' +
+        '<div class="vp-step"><div class="st">第一步 · 添加主理人微信</div><div class="qbox">' + wxQrImgHtml('advisor-' + c.serviceWechat) + '</div>' +
         '<div class="rd">请扫码添加主理人微信，备注：会员+姓名。我会拉你进入会员专属社群，同步活动排期、预约通道。</div></div>' +
         '<div class="vp-step"><div class="st">第二步 · 填写会员信息登记表</div>' +
         '<div class="rd">信息用于帮你匹配老板资源、预约咨询和活动名额，信息仅内部会员服务使用，严格保密。</div>' +
@@ -744,7 +772,7 @@
         ? (dist.wxQr
           ? '<img src="' + dist.wxQr + '" style="width:120px;height:120px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;margin:0 auto">' +
             '<div class="gsub">长按识别二维码添加销售客服（' + esc(dist.name || '') + '），并提供报名凭证截图，拉你进群</div>'
-          : '<div class="qbox">' + qrSVG('wxqr-' + dist.phone) + '</div><div class="gsub">长按识别二维码添加销售客服，并提供报名凭证截图，拉你进群</div>')
+          : '<div class="qbox">' + wxQrImgHtml('wxqr-' + dist.phone) + '</div><div class="gsub">长按识别二维码添加销售客服，并提供报名凭证截图，拉你进群</div>')
         : '<div class="gsub">报名成功后请等待销售客服联系你进群</div>') + '</div>' +
       '</div></div></div>' +
       '<div class="bd-foot-hint">到场出示报名凭证入场 · 会员享专属价与优先锁座</div>';
@@ -896,13 +924,13 @@
         ? '<div class="d-block" style="text-align:center"><div class="adv-ok">✓</div>' +
           '<div style="font-size:14.5px;font-weight:700;margin:10px 0 6px">你已添加 ' + esc(c.serviceWechat) + '</div>' +
           '<div class="wb-note">后续活动邀约、引荐对接、资源链接都由顾问一对一服务</div>' +
-          '<div class="qbox" style="margin:12px auto 0;width:130px">' + qrSVG(qr) + '</div>' +
+          '<div class="qbox" style="margin:12px auto 0;width:130px">' + wxQrImgHtml(qr) + '</div>' +
           '<div class="wb-note">换设备或误删可再次长按识别添加</div>' +
           '<button class="btn-primary" style="margin-top:14px" onclick="UI.go(\'#/circle\')">进入圈子</button></div>'
         : '<div class="d-block" style="text-align:center">' +
           '<div style="font-size:14.5px;font-weight:700;margin-bottom:5px">' + esc(c.serviceWechat) + '</div>' +
           '<div class="wb-note">长按识别下方二维码，添加顾问企业微信</div>' +
-          '<div class="qbox" style="margin:0 auto;width:200px">' + qrSVG(qr) + '</div>' +
+          '<div class="qbox" style="margin:0 auto;width:200px">' + wxQrImgHtml(qr) + '</div>' +
           '<div class="wb-note">加完后点下面的按钮，发帖功能即可开放</div>' +
           '<button class="btn-primary" style="margin-top:14px" onclick="User.addAdvisor()">我已添加顾问</button></div>' +
           '<div class="d-block"><div class="wb-note">为什么要加顾问：你的引荐对接、活动邀约、资源链接都由顾问一对一跟，不加就没人接你的需求。</div></div>');
@@ -969,7 +997,7 @@
       '<div class="d-block" style="text-align:center">' +
       '<div style="font-size:14px;font-weight:700">' + esc(c.coopName) + '</div>' +
       '<div class="wb-note">着急的话，直接扫码加微信聊备注「合作」通过更快</div>' +
-      '<div class="qbox" style="margin:0 auto;width:180px">' + qrSVG('coop-' + c.coopWechat) + '</div>' +
+      '<div class="qbox" style="margin:0 auto;width:180px">' + wxQrImgHtml('coop-' + c.coopWechat) + '</div>' +
       '<button class="btn-ghost" style="margin-top:12px" onclick="UI.copy(\'' + c.coopWechat + '\')">📋 复制微信号：' + esc(c.coopWechat) + '</button></div>' +
       '<div class="wb-note">想补充信息或改内容？直接加微信说，不用重新提交（同一手机号 24 小时内只能提交一次）。</div>' +
       '<button class="btn-plain" onclick="UI.go(\'#/me\')">返回</button></div>';
@@ -1105,13 +1133,14 @@
     var u = S.get().user, c = S.get().config;
     /* 二维码点击跳转：后台配置的商务合作链接（带锁粉参数）；未配置 → 站内合作申请页 */
     var jump = c.coopLink ? (c.coopLink + (c.coopLink.indexOf('?') >= 0 ? '&' : '?') + 'd=' + u.inviteCode) : '';
+    var coopUrl = jump || (location.origin + location.pathname + '?d=' + u.inviteCode + '#/coop-apply');
     var qrHtml = jump
       ? '<div class="qr-wrap" style="cursor:pointer" onclick="window.open(\'' + jump.replace(/'/g, '%27') + '\',\'_blank\')">' +
-        '<div class="qbox">' + qrSVG('coop-' + u.inviteCode) + '</div>' +
+        '<div class="qbox">' + qrUrlSvg(jump) + '</div>' +
         '<div class="qt">扫码/点击填写合作意向</div><div class="qd">主理人 24 小时内联系你 · 不收费</div>' +
         '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击二维码直达合作表单</div></div>'
       : '<div class="qr-wrap" style="cursor:pointer" onclick="UI.go(\'#/coop-apply\')">' +
-        '<div class="qbox">' + qrSVG('coop-' + u.inviteCode) + '</div>' +
+        '<div class="qbox">' + qrUrlSvg(coopUrl) + '</div>' +
         '<div class="qt">点击填写合作意向</div><div class="qd">主理人 24 小时内联系你 · 不收费</div>' +
         '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击打开站内合作申请表</div></div>';
     phone.innerHTML = '' +
@@ -1137,9 +1166,9 @@
     var u = S.get().user;
     return location.origin + location.pathname + '?d=' + u.inviteCode + (path ? '#' + path : '');
   }
-  function posterQrHtml(seed, jumpUrl, caption, sub) {
+  function posterQrHtml(jumpUrl, caption, sub) {
     return '<div class="qr-wrap" style="cursor:pointer" onclick="window.open(\'' + jumpUrl + '\',\'_blank\')">' +
-      '<div class="qbox">' + qrSVG(seed) + '</div>' +
+      '<div class="qbox">' + qrUrlSvg(jumpUrl) + '</div>' +
       '<div class="qt">' + caption + '</div><div class="qd">' + sub + '</div>' +
       '<div style="margin-top:6px;font-size:10px;color:#8bd9a8">👆 点击二维码可直接打开链接</div></div>';
   }
@@ -1164,7 +1193,7 @@
       '<div class="po-sub">' + esc(c.salonHeld || '') + '</div>' +
       '<div class="po-sec">近期排期</div>' + rows +
       '<div class="po-sec">扫码 / 点击查看全部沙龙并报名</div>' +
-      posterQrHtml('salons-' + db.user.inviteCode, posterJumpUrl('/salon'), '报名从速 · 扫码直达', '通过你的链接报名，自动锁定为你客户'));
+      posterQrHtml(posterJumpUrl('/salon'), '报名从速 · 扫码直达', '通过你的链接报名，自动锁定为你客户'));
   }
 
   /* ================= 页面：单期主题海报（扫码直达该期报名页） ================= */
@@ -1192,7 +1221,7 @@
       '<div class="po-step"><div class="n">1</div><div><div class="t">老板资源对接</div><div class="d">供应链 / 渠道 / 流量现场谈</div></div></div>' +
       '<div class="po-step"><div class="n">2</div><div><div class="t">门票</div><div class="d">' + (price ? '¥' + price + (db.user.member ? '（会员价）' : '') : '会员免费') + '</div></div></div>' +
       '<div class="po-sec">扫码 / 点击直达本期报名页</div>' +
-      posterQrHtml('salon-' + evId + '-' + db.user.inviteCode, posterJumpUrl('/pay/salon/' + evId), '名额有限 · 扫码报名', '通过你的链接报名，自动锁定为你客户'));
+      posterQrHtml(posterJumpUrl('/pay/salon/' + evId), '名额有限 · 扫码报名', '通过你的链接报名，自动锁定为你客户'));
   }
 
   /* ================= 页面：探访老板海报（扫码看视频合集） ================= */
@@ -1210,7 +1239,7 @@
       '<div class="po-sub">真实老板 · 真实资源 · 视频合集持续更新</div>' +
       '<div class="po-sec">本期探访</div>' + rows +
       '<div class="po-sec">扫码 / 点击观看探访视频合集</div>' +
-      posterQrHtml('boss-' + db.user.inviteCode, posterJumpUrl('/boss'), '看老板都在聊什么', '通过你的链接进入，自动锁定为你客户'));
+      posterQrHtml(posterJumpUrl('/boss'), '看老板都在聊什么', '通过你的链接进入，自动锁定为你客户'));
   }
 
   /* ================= 页面：圈子 ================= */

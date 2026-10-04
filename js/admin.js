@@ -900,7 +900,35 @@
         }).join('');
       }
       render(g1, 'cfgGrid1'); render(g2, 'cfgGrid2');
+      /* 客服微信真实二维码上传（用户端「加微信」处展示真实图；未上传时前端显示示例装饰图案） */
+      document.getElementById('cfgGrid2').insertAdjacentHTML('beforeend',
+        '<div class="cfg-item"><div class="ck">客服微信二维码图片（真实码，用户端加微信处展示）</div>' +
+        '<div style="display:flex;gap:10px;align-items:center">' +
+        '<div id="cfgWxQrPrev" style="width:56px;height:56px;border:1px solid #e5e6eb;border-radius:8px;overflow:hidden;background:#fff;flex:none">' +
+        (c.serviceWechatQr ? '<img src="' + esc(c.serviceWechatQr) + '" style="width:100%;height:100%;object-fit:contain">' : '<span style="font-size:11px;color:#86909c;display:flex;height:100%;align-items:center;justify-content:center">未上传</span>') + '</div>' +
+        '<button class="btn sm" onclick="Admin.upWxQrCfg()">📤 上传</button>' +
+        (c.serviceWechatQr ? '<button class="btn sm" onclick="Admin.clearWxQrCfg()">清除</button>' : '') +
+        '</div><div style="font-size:12px;color:#86909c;margin-top:6px">请上传真实的微信/企业微信二维码截图（从微信「我→二维码名片」保存）。微信号文本无法生成可识别的微信码。</div></div>');
       Admin.renderPayInfo();
+    },
+    upWxQrCfg: function () {
+      ImgUp.pick({ ratio: 1, max: 700, targetKB: 180 }, function (urls) {
+        if (!urls || !urls.length) return;
+        fetch('/api/img/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl: urls[0] }) })
+          .then(function (r) { return r.json(); })
+          .then(function (r) {
+            if (r && r.ok && r.url) {
+              var db = S.get(); db.config.serviceWechatQr = r.url; S.save();
+              Admin.renderConfig(); toast('客服微信二维码已保存');
+            } else toast((r && r.msg) ? r.msg : '上传失败');
+          })
+          .catch(function () { toast('服务端不可达，上传失败'); });
+      });
+    },
+    clearWxQrCfg: function () {
+      if (!confirm('确定清除客服微信二维码？清除后用户端显示示例装饰图案。')) return;
+      var db = S.get(); db.config.serviceWechatQr = ''; S.save();
+      Admin.renderConfig(); toast('已清除');
     },
     /* 支付收款信息卡片（用户端收银台扫码支付的数据源） */
     renderPayInfo: function () {

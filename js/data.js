@@ -55,6 +55,7 @@
         coopWechat: 'ledaoykj-coop',
         coopName: '乐道科技 · 商务合作',
         coopLink: '',               // 商务合作链接（海报二维码点击跳转；留空=站内合作申请页）
+        serviceWechatQr: '',        // 客服微信真实二维码图片 URL（后台可上传；留空=前端显示示例装饰图案）
         hiddenTabs: [],             // 首页入口开关：circle / bosses
         payInfo: {                  // 微信/支付宝收款信息（后台「收款设置」可改，服务端 pay/save 同步）
           wxQr: '', aliQr: '',      // 收款二维码图片地址（/uploads/payqr-*.jpg）
