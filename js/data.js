@@ -14,6 +14,9 @@
   'use strict';
 
   var DB_KEY = 'TQ_DB_V1';
+  var BACKUP_KEY = 'TQ_DB_BACKUP';        /* 覆盖写之前的上一份快照（回滚用） */
+  var LEGACY_KEYS = ['TQ_DB_V0', 'TQ_DB'];/* 历史存储键名（升级迁移，读不到主键时兜底） */
+  var SCHEMA_VERSION = 2;                 /* 数据结构版本：变更时 +1 并在 migrate 中补迁移步骤 */
   var CONTENT_SCOPES = [
     'config', 'bosses', 'salons', 'notices', 'posts',
     'banners', 'vipPage', 'signups', 'commissions', 'referrals',
@@ -25,8 +28,7 @@
   }
 
   function seed() {
-    var now = new Date();
-    function d(offsetDays) {
+    var now = new Date();    function d(offsetDays) {
       var t = new Date(now.getTime() + offsetDays * 86400000);
       return t.toISOString().slice(0, 10);
     }
@@ -332,24 +334,136 @@
     };
   }
 
-  function load() {
+  /* ================= 升级兼容：深补齐 / 迁移 / 备份 / 安全写盘 =================
+   * 设计原则（防「功能更新把用户数据重置」）：
+   *   1. 任何读取 → 只有「确实没有本地数据」才 seed；解析失败先尝试备份恢复，再退回 seed
+   *   2. 结构升级 = 只补缺失键（含嵌套），绝不用默认值覆盖用户已有值
+   *   3. 覆盖写之前先留上一份快照；写盘失败绝不重置，降级为精简写入并明确告警
+   *   4. 编辑时间戳（__editAt）供云同步判断「本地是否领先」，避免升级后被云端旧快照回退
+   * ==================================================================== */
+  function isPlainObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+
+  /* 深补齐：仅当目标缺少键（undefined/null）时写入默认值；对象递归、数组保留原值 */
+  function deepFill(target, defaults) {
+    Object.keys(defaults).forEach(function (k) {
+      var d = defaults[k];
+      if (target[k] === undefined || target[k] === null) { target[k] = d; return; }
+      if (isPlainObj(d) && isPlainObj(target[k])) deepFill(target[k], d);
+    });
+    return target;
+  }
+
+  /* 结构迁移：v0（无版本字段的老缓存）→ v1 → v2... 逐级补全，永不清空数据 */
+  function migrate(db) {
+    var from = Number(db.__v || 0), steps = [];
+    if (from < 1) { steps.push('v0→v1(补顶层内容域)'); }
+    if (from < 2) { steps.push('v2(补嵌套字段 config.payInfo/serviceWechatQr/coopLink 等)'); }
+    if (from < SCHEMA_VERSION) {
+      deepFill(db, seed());                 /* 补全新域与新嵌套字段，不动已有值 */
+      db.__v = SCHEMA_VERSION;
+      db.__migratedAt = new Date().toISOString();
+      db.__migratedFrom = from;
+    }
+    return steps;
+  }
+
+  function tryRead(key) {
     try {
-      var raw = localStorage.getItem(DB_KEY);
-      if (raw) {
-        var db = JSON.parse(raw);
-        /* 结构升级：补齐新内容域，避免老缓存缺字段 */
-        var s = seed();
-        Object.keys(s).forEach(function (k) { if (db[k] === undefined) db[k] = s[k]; });
-        return db;
+      var raw = localStorage.getItem(key);
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch (e) { return null; }
+    } catch (e) { return null; }
+  }
+  function readRaw(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+
+  /* 覆盖写之前保留上一份快照（超 3MB 跳过，避免备份本身撑爆配额） */
+  function writeBackup(raw) {
+    if (!raw || raw.length > 3e6) return;
+    try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ ts: Date.now(), raw: raw })); } catch (e) { /* 备份失败不影响主流程 */ }
+  }
+
+  /* 配额/隐私模式兜底：剥离超长 base64 图片串后再写一次 */
+  function slimText(text) { return String(text).replace(/"data:[^"]{20000,}"/g, '""'); }
+
+  function load() {
+    var db = tryRead(DB_KEY), corruptRaw = null;
+
+    /* 主键存在但解析失败（被截断/写坏）→ 留证据并尝试从备份恢复 */
+    if (!db) {
+      corruptRaw = readRaw(DB_KEY);
+      if (corruptRaw) {
+        var bk = tryRead(BACKUP_KEY);
+        if (bk && bk.raw) {
+          try { db = JSON.parse(bk.raw); console.warn('[Store] 本地缓存损坏，已从备份快照恢复（' + new Date(bk.ts).toISOString() + '）'); } catch (e) { db = null; }
+        }
+        if (!db) { try { localStorage.setItem('TQ_DB_CORRUPT_' + Date.now(), corruptRaw); } catch (e) {} }
       }
-    } catch (e) { /* ignore */ }
-    var fresh = seed();
-    save(fresh);
-    return fresh;
+    }
+
+    /* 主键不存在 → 历史键名迁移（老版本用户升级路径） */
+    if (!db) {
+      for (var i = 0; i < LEGACY_KEYS.length; i++) {
+        var legacy = tryRead(LEGACY_KEYS[i]);
+        if (legacy) { db = legacy; console.warn('[Store] 已从历史存储键 ' + LEGACY_KEYS[i] + ' 迁移数据，未丢失'); break; }
+      }
+    }
+
+    /* 确实没有任何本地数据 → 全新用户，才生成种子 */
+    if (!db) {
+      var fresh = seed();
+      fresh.__v = SCHEMA_VERSION;
+      fresh.__edited = false;
+      save(fresh);
+      return fresh;
+    }
+
+    /* 结构升级：补全缺失域与嵌套新字段（数据保留） */
+    var steps = migrate(db);
+    if (steps.length) console.warn('[Store] 数据结构已自动迁移（原 v' + Number(db.__migratedFrom || 0) + '）：' + steps.join(' / '));
+    if (db.__edited === undefined) db.__edited = false;
+    if (!db.__editAt) db.__editAt = {};
+    if (!db.__pushAt) db.__pushAt = {};
+    save(db);
+    return db;
   }
 
   function save(db) {
-    try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) { /* ignore */ }
+    var text;
+    try { text = JSON.stringify(db); } catch (e) { console.warn('[Store] 序列化失败，本次未写盘（内存数据仍在）', e); return false; }
+    try {
+      var prev = readRaw(DB_KEY);
+      if (prev && prev !== text) writeBackup(prev);   /* 覆盖前留快照 */
+      localStorage.setItem(DB_KEY, text);
+      global.__TQ_SAVE_FAILED = false;
+      return true;
+    } catch (e) {
+      /* 配额不足 / 隐私模式：绝不因此重置数据，降级为精简写入 */
+      global.__TQ_SAVE_FAILED = true;
+      console.warn('[Store] 本地写入失败，已降级为精简缓存（不影响内存与云端数据）', e);
+      try { localStorage.setItem(DB_KEY, slimText(text)); return true; } catch (e2) { console.warn('[Store] 精简写入仍失败，仅内存保留', e2); return false; }
+    }
+  }
+
+  /* 记录被改动的内容域与时间戳（供云同步做「最后写入优先」判断） */
+  function stable(v) {
+    if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+    if (isPlainObj(v)) return '{' + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ':' + stable(v[k]); }).join(',') + '}';
+    return JSON.stringify(v);
+  }
+  function markEdited() {
+    if (!db) return;
+    var nowIso = new Date().toISOString(), changed = 0;
+    if (!db.__editAt) db.__editAt = {};
+    if (!db.__syncRef) db.__syncRef = {};
+    CONTENT_SCOPES.forEach(function (s) {
+      var cur = stable(db[s]);
+      if (db.__syncRef[s] !== cur) {           /* 内容域有变化 → 记为本地领先 */
+        db.__syncRef[s] = cur;
+        db.__editAt[s] = nowIso;
+        changed++;
+      }
+    });
+    if (changed) db.__edited = true;
   }
 
   var db = load();
@@ -374,9 +488,43 @@
 
   global.Store = {
     get: function () { return db; },
-    save: function () { save(db); scheduleCloudPush(); },
+    /* 业务改动保存：标记本地已编辑 + 记录改动域时间戳 + 推送云端 */
+    save: function () { markEdited(); save(db); scheduleCloudPush(); },
+    /* 仅落盘（云端下发覆盖本地时使用，不视为用户编辑，避免反向污染云端） */
     persist: function () { save(db); },
-    /* 启动时云端初始化：拉取云端覆盖本地（changed 时回调刷新界面） */
+    /* 本地是否仍是最初的种子数据（未编辑） */
+    isSeed: function () { return !db.__edited; },
+    /* ---------- 升级/迁移可观测性与恢复入口 ---------- */
+    schema: function () { return { v: db.__v || 0, target: SCHEMA_VERSION, migratedFrom: db.__migratedFrom || 0, migratedAt: db.__migratedAt || '', edited: !!db.__edited }; },
+    backupInfo: function () {
+      var bk = tryRead(BACKUP_KEY);
+      return bk && bk.raw ? { ts: bk.ts, size: bk.raw.length } : null;
+    },
+    /* 从上一次覆盖前的快照回滚（数据抢救用） */
+    restoreBackup: function () {
+      var bk = tryRead(BACKUP_KEY);
+      if (!bk || !bk.raw) return false;
+      try {
+        db = JSON.parse(bk.raw);
+        db.__v = db.__v || SCHEMA_VERSION;
+        save(db);
+        return true;
+      } catch (e) { return false; }
+    },
+    /* 供云同步读取/写入同步时间戳（判断本地是否领先云端） */
+    editAt: function (s) { return (db.__editAt || {})[s] || ''; },
+    pushAt: function (s) { return (db.__pushAt || {})[s] || ''; },
+    markPushed: function (scopes) {
+      var nowIso = new Date().toISOString();
+      if (!db.__pushAt) db.__pushAt = {};
+      if (!db.__syncRef) db.__syncRef = {};
+      scopes.forEach(function (s) {
+        db.__pushAt[s] = nowIso;
+        db.__syncRef[s] = stable(db[s]);
+        if (db.__editAt) db.__editAt[s] = '';   /* 已推送 → 不再是「本地领先」 */
+      });
+      save(db);
+    },
     initSync: function (onChanged, onError) {
       if (!global.CloudSync) return Promise.resolve();
       return global.CloudSync.init(db, seedContent(), onChanged, onError);
@@ -408,7 +556,16 @@
       return changed;
     },
 
-    reset: function () { db = seed(); save(db); scheduleCloudPush(); },
+    /* 危险操作：重置为初始数据。默认只重置本地（先留快照），必须显式 pushCloud:true 才污染云端 */
+    reset: function (opt) {
+      writeBackup(readRaw(DB_KEY));
+      db = seed();
+      db.__v = SCHEMA_VERSION;
+      db.__edited = false;
+      db.__resetAt = new Date().toISOString();
+      save(db);
+      if (opt && opt.pushCloud) scheduleCloudPush();
+    },
     uid: uid,
     /* 工具 */
     fmtMoney: function (n) { return '¥' + (Math.round(n * 100) / 100); },
