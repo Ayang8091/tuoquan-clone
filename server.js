@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const zlib = require('zlib');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -335,6 +336,39 @@ const apiHandlers = {
       }
     } catch (e) {
       json(res, 500, { ok: false, msg: String(e.message || e) });
+    }
+  },
+
+  /* 微信 JS-SDK 签名（自定义分享卡片）：access_token → jsapi_ticket（本地缓存，提前 5 分钟刷新）→ sha1 */
+  'wx/signature': async (body, res) => {
+    if (!WX_APPID || !WX_SECRET) return json(res, 200, { ok: false, reason: 'unconfigured', msg: '未配置 WX_APPID/WX_SECRET，前端走默认卡片' });
+    const PAGE = 290; /* 票据有效 7200s，提前 300s 刷新 */
+    const cacheFile = path.join(ROOT, 'data', 'wxticket.json');
+    function cacheRead() { try { return JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch (e) { return {}; } }
+    function cacheWrite(c) { try { fs.mkdirSync(path.join(ROOT, 'data'), { recursive: true }); fs.writeFileSync(cacheFile, JSON.stringify(c)); } catch (e) { /* 缓存失败仅降级为重新拉取 */ } }
+    try {
+      const now = Date.now();
+      let c = cacheRead();
+      if (!c.at || c.at.exp < now) {
+        const t = await httpsGet(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WX_APPID}&secret=${WX_SECRET}`);
+        if (t.errcode) return json(res, 200, { ok: false, reason: 'token', msg: '获取 access_token 失败：' + t.errcode + ' ' + t.errmsg + '（检查 IP 白名单）' });
+        c.at = { v: t.access_token, exp: now + ((t.expires_in || 7200) - PAGE) * 1000 };
+        cacheWrite(c);
+      }
+      if (!c.jt || c.jt.exp < now) {
+        const t = await httpsGet(`https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${c.at.v}&type=jsapi`);
+        if (t.errcode) return json(res, 200, { ok: false, reason: 'ticket', msg: '获取 jsapi_ticket 失败：' + t.errcode + ' ' + t.errmsg });
+        c.jt = { v: t.ticket, exp: now + ((t.expires_in || 7200) - PAGE) * 1000 };
+        cacheWrite(c);
+      }
+      const nonceStr = Math.random().toString(36).slice(2, 18);
+      const timestamp = Math.floor(now / 1000);
+      const link = String(body.url || '').split('#')[0]; /* 不含 #hash，与前端传参规则一致 */
+      const raw = `jsapi_ticket=${c.jt.v}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${link}`;
+      const signature = crypto.createHash('sha1').update(raw).digest('hex');
+      json(res, 200, { ok: true, appId: WX_APPID, timestamp, nonceStr, signature });
+    } catch (e) {
+      json(res, 200, { ok: false, reason: 'error', msg: String(e.message || e) });
     }
   },
 

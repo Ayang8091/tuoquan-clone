@@ -24,6 +24,15 @@ window.WX_CONFIG = {
   authDomain: ''
 };
 
+/* 微信分享卡片内容（JS-SDK 自定义分享；imgUrl 相对路径自动转绝对地址）
+ * 生效前提：后端配置 WX_APPID/WX_SECRET + 公众号后台「JS 接口安全域名」「IP 白名单」 */
+window.WX_SHARE = {
+  title: '乐道AI · AI 老板资源圈',
+  desc: 'AI 出海老板沙龙 · 16000+ 私域老板资源对接 · 名额有限，马上报名',
+  imgUrl: 'img/logo-icon.png',
+  link: ''    /* 留空 = 分享当前页面地址 */
+};
+
 /* WorkBuddy 云服务公共配置（数据跨设备同步用）
  * endpoint 必须与当前部署域名一致；publishableKey 仅标识应用，无敏感权限 */
 window.PUBLIC_CONFIG = {
