@@ -1139,18 +1139,33 @@
     var dt = new Date(t);
     return (dt.getMonth() + 1) + '月' + dt.getDate() + '日';
   }
+  /* ---------- 会员身份有效性（进入圈子 / 发帖 / 删帖 三个时机统一调用） ----------
+   * 年费会员且未过期才有效；memberExpire 缺省视为长期有效；过期即视为非会员。 */
+  function memberValid(db) {
+    var u = (db || S.get()).user;
+    return !!u.member && (!u.memberExpire || String(u.memberExpire) >= S.today());
+  }
+  /* 帖子归属判断：以发帖时的 ownerId（登录手机号）为准，运行时计算，不落 mine 字段（避免云同步串号） */
+  function cclIsMine(p, db) {
+    var u = (db || S.get()).user;
+    return !!(p && p.ownerId && p.ownerId === (u.phone || u.id));
+  }
+  /* 会员引导条：非会员/未登录/会员过期 三种文案 */
   function cclGateBarHtml() {
     var db = S.get();
     var logged = window.Auth && Auth.isLoggedIn();
-    if (logged && db.user.member) return '';
+    if (logged && memberValid(db)) return '';
+    var expired = logged && !!db.user.member && !memberValid(db);
     return '<div class="ccl-gate" onclick="UI.go(\'' + (logged ? '#/vip' : '#/login') + '\')">' +
       '<div style="flex:1">' +
-      '<div style="font-size:12.5px;font-weight:700;color:var(--green);line-height:1.5">' + (logged ? '开通会员，才能发自己的动态' : '成为会员，圈子才能发动态') + '</div>' +
+      '<div style="font-size:12.5px;font-weight:700;color:var(--green);line-height:1.5">' +
+      (expired ? '会员已过期，续费后才能发动态' : (logged ? '开通年度会员，才能发自己的动态' : '成为会员，圈子才能发动态')) + '</div>' +
       '<div style="font-size:10.5px;color:#5f6368;margin-top:3px;line-height:1.6">游客可以浏览全部动态；想联系发布人，点动态里的「申请平台引荐」由客服免费拉群。</div>' +
-      '</div><span style="font-size:11px;color:var(--green);font-weight:700;flex-shrink:0">' + (logged ? '去开通 ›' : '登录 ›') + '</span></div>';
+      '</div><span style="font-size:11px;color:var(--green);font-weight:700;flex-shrink:0">' + (logged ? (expired ? '去续费 ›' : '去开通 ›') : '登录 ›') + '</span></div>';
   }
-  function cclCardHtml(p) {
+  function cclCardHtml(p, db) {
     var a = p.author || {}, imgs = p.images || [], imgHtml = '';
+    var mine = cclIsMine(p, db);
     if (imgs.length === 1) imgHtml = '<div style="margin-top:10px"><img src="' + imgs[0] + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;background:#eef0f3"></div>';
     else if (imgs.length > 1) imgHtml = '<div class="ccl-imgs">' + imgs.map(function (u) { return '<img src="' + u + '">'; }).join('') + '</div>';
     var videoHtml = p.videoUrl
@@ -1169,7 +1184,7 @@
       (p.content ? '<div class="ccl-body">' + esc(p.content).replace(/\n/g, '<br>') + '</div>' : '') +
       imgHtml + videoHtml +
       '<div class="ccl-foot"><span>' + cclAgo(p.createdAt) + '</span>' +
-      '<span style="color:var(--green);font-weight:700">' + (p.mine ? '我发的 · 看看 ›' : '想联系 TA ›') + '</span></div></div>';
+      '<span style="color:var(--green);font-weight:700">' + (mine ? '我发的 · 看看 ›' : '想联系 TA ›') + '</span></div></div>';
   }
 
   function pageCircle() {
@@ -1183,7 +1198,7 @@
         return '<span class="ccl-cat ' + (cat === c[0] ? 'on' : '') + '" onclick="window._cclCat=\'' + c[0] + '\';render()">' + c[1] + '</span>';
       }).join('') + '</div>' +
       '<div class="ccl-list">' +
-      (list.length ? list.map(cclCardHtml).join('') + '<div class="ccl-end">— 到底了 —</div>'
+      (list.length ? list.map(function (p) { return cclCardHtml(p, db); }).join('') + '<div class="ccl-end">— 到底了 —</div>'
         : '<div class="empty-salon"><div class="ico">○</div><p>' + (cat === 'all' ? '圈子里还没有动态' : '这个分类下还没有动态') + '</p></div>') +
       '</div>' + vipFabHtml() + tabbar('circle');
   }
@@ -1191,10 +1206,12 @@
   function pageCircleDetail(id) {
     var db = S.get();
     var p = (db.posts || []).filter(function (x) { return x.id === id; })[0];
-    if (!p) { phone.innerHTML = pagebar('动态详情', '#/circle') + '<div class="empty-salon">动态不存在</div>'; return; }
+    if (!p) { phone.innerHTML = pagebar('动态详情', '#/circle') + '<div class="empty-salon"><div class="ico">○</div><p>动态不存在或已被删除</p><div style="margin-top:14px"><button class="btn-primary" onclick="UI.go(\'#/circle\')">返回圈子</button></div></div>'; return; }
+    var mine = cclIsMine(p, db);
     var catName = (CCL_CATS.filter(function (c) { return c[0] === p.cat; })[0] || [])[1] || '分享';
     phone.innerHTML = pagebar('动态详情', '#/circle') +
-      '<div class="ccl-list">' + cclCardHtml(p) +
+      '<div class="ccl-list">' + cclCardHtml(p, db) +
+      (mine ? '<div style="margin:-2px 14px 10px;text-align:right"><button class="btn-ghost" style="font-size:11.5px;padding:6px 14px" onclick="User.cclDelPost(\'' + p.id + '\')">🗑 删除这条动态</button></div>' : '') +
       '<div class="bd-card" style="margin-top:10px"><h4>想联系 TA？</h4>' +
       '<div class="hint" style="font-size:12px;color:var(--txt2);line-height:1.7">平台提示：为保护双方，动态里不显示联系方式。想对接就点下面「申请平台引荐」，客服核对后会免费拉群。</div>' +
       '<div style="margin-top:12px"><button class="btn-primary" onclick="User.cclRefer(\'' + p.id + '\')">申请平台引荐</button></div>' +
@@ -1203,10 +1220,12 @@
 
   function pageCirclePub() {
     var db = S.get();
-    if (!db.user.member) {
+    if (!memberValid(db)) {
+      var expired = !!db.user.member;
       phone.innerHTML = pagebar('发布动态', '#/circle') + cclGateBarHtml() +
-        '<div class="empty-salon"><div class="ico">👑</div><p>圈子发帖仅限会员</p>' +
-        '<div style="margin-top:14px"><button class="btn-primary" onclick="UI.go(\'#/vip\')">开通年度老板会员</button></div></div>';
+        '<div class="empty-salon"><div class="ico">👑</div><p>' + (expired ? '会员已过期 · 续费后可继续发帖' : '圈子发帖仅限年费会员') + '</p>' +
+        '<div style="font-size:11px;color:var(--txt3);margin-top:8px">游客可浏览全部动态；开通会员后支持文字、配图与视频号链接</div>' +
+        '<div style="margin-top:14px"><button class="btn-primary" onclick="UI.go(\'#/vip\')">' + (expired ? '立即续费' : '开通年度老板会员') + '</button></div></div>';
       return;
     }
     if (!db.user.advisorAdded) {
@@ -1236,6 +1255,8 @@
       }).join('') +
       (window._cclPubImgs.length < 9 ? '<div class="ccl-pick-add" onclick="User.cclPickImgs()"><span style="font-size:20px;color:#b0b5bb">+</span><span style="font-size:10px;color:#b0b5bb">添加图片</span></div>' : '') +
       '</div></div>' +
+      '<div class="fld"><div class="lb">视频号 / 视频链接 <span style="font-weight:400;color:#9aa0a6">（选填，发布后展示为播放卡片）</span></div>' +
+      '<input id="cclVideo" maxlength="300" value="' + esc(window._cclPubVideo || '') + '" placeholder="https://channels.weixin.qq.com/…"></div>' +
       '<div class="fld"><div class="ccl-warn">⚠ 手机号、微信号、QQ、邮箱会被系统自动隐藏 —— 对接走平台引荐，避免被绕单。</div>' +
       '<div class="ccl-agree" onclick="window._cclPubAgree=!window._cclPubAgree;render()">' +
       '<span class="box ' + (window._cclPubAgree ? 'on' : '') + '">✓</span>' +
@@ -1246,14 +1267,16 @@
 
   function pageCircleMine() {
     var db = S.get();
-    var mine = (db.posts || []).filter(function (p) { return p.mine; });
+    var uid = db.user.phone || db.user.id;
+    var mine = (db.posts || []).filter(function (p) { return p.ownerId && p.ownerId === uid; });
     var ST = { pending: '待审核', on: '已发布', off: '已下架', rejected: '已驳回' };
     phone.innerHTML = pagebar('我的动态', '#/circle') +
       '<div class="ccl-list">' +
       (mine.length ? mine.map(function (p) {
         var st = ST[p.status || 'on'];
-        return cclCardHtml(p) + '<div class="wb-note" style="margin:-6px 14px 10px">状态：' + st +
-          (p.rejectReason ? ' · 驳回原因：' + esc(p.rejectReason) : '') + '</div>';
+        return cclCardHtml(p, db) + '<div class="wb-note" style="margin:-6px 14px 10px">状态：' + st +
+          (p.rejectReason ? ' · 驳回原因：' + esc(p.rejectReason) : '') + '</div>' +
+          '<div style="margin:-4px 14px 12px;text-align:right"><button class="btn-ghost" style="font-size:11.5px;padding:6px 14px" onclick="User.cclDelPost(\'' + p.id + '\')">🗑 删除</button></div>';
       }).join('') : '<div class="empty-salon"><div class="ico">○</div><p>你还没有发布动态</p></div>') +
       '</div>';
   }
@@ -1889,22 +1912,34 @@
     },
     cclPublish: function () {
       var db = S.get();
+      /* 发帖瞬间二次校验会员有效性（页面停留期间可能过期） */
+      if (!memberValid(db)) {
+        UI.toast(db.user.member ? '会员已过期，续费后才能发帖' : '圈子发帖仅限年费会员');
+        UI.go('#/vip');
+        return;
+      }
+      if (!db.user.advisorAdded) { UI.toast('请先添加平台专属顾问'); UI.go('#/advisor'); return; }
       var content = ($('cclContent') || {}).value || '';
       var nick = ($('cclNick') || {}).value || db.user.nickname;
       var imgs = window._cclPubImgs || [];
+      var video = (($('cclVideo') || {}).value || '').trim();
+      if (video && !/^https?:\/\/\S+$/i.test(video)) { UI.toast('视频链接需以 http(s):// 开头'); return; }
+      window._cclPubVideo = video;
       if (!content.trim() && !imgs.length) { UI.toast('说点什么，或至少配一张图'); return; }
       if (!window._cclPubAgree) { UI.toast('请先勾选《圈子发布规范》'); return; }
-      /* 落库：content 为打码后的最终文案（敏感信息自动隐藏，对接走平台引荐） */
+      /* 落库：content 为打码后的最终文案（敏感信息自动隐藏，对接走平台引荐）；
+       * ownerId 为发帖人登录手机号，删帖权限以此判定（不落 mine 字段，避免云同步串号） */
       var publish = function (finalContent) {
         db.user.nickname = nick || db.user.nickname;
         db.posts.unshift({
           id: S.uid('p'), cat: window._cclPubCat || 'res', content: finalContent,
-          images: imgs.slice(), mine: true, pinned: false, status: 'pending',
+          images: imgs.slice(), videoUrl: video || '', pinned: false, status: 'pending',
+          ownerId: db.user.phone || db.user.id,
           createdAt: nowStr(),
           author: { nickname: db.user.nickname, avatarUrl: db.user.avatar, company: (db.user.profile || {}).company || '', industry: (db.user.profile || {}).industry || '' }
         });
         S.save();
-        window._cclPubText = ''; window._cclPubImgs = []; window._cclPubAgree = false;
+        window._cclPubText = ''; window._cclPubImgs = []; window._cclPubAgree = false; window._cclPubVideo = '';
         notify('boss', '📝', '新动态待审核', db.user.nickname + ' 发布了圈子动态');
         UI.toast('已发布，等待平台审核');
         setTimeout(function () { UI.go('#/circle'); }, 700);
@@ -1912,7 +1947,7 @@
       /* 服务端校验优先（会员/顾问门槛 + 分类合法 + 敏感信息打码），不可达时本地规则兜底 */
       apiPost('/post/check', {
         content: content.trim(), cat: window._cclPubCat || 'res', images: imgs.slice(),
-        member: !!db.user.member, advisorAdded: !!db.user.advisorAdded
+        member: memberValid(db), advisorAdded: !!db.user.advisorAdded
       }, function (res) {
         if (res && res.ok === false) { UI.toast(res.msg || '发布校验未通过'); return; }
         if (res && res.ok) {
@@ -1923,6 +1958,24 @@
         if (m.flags.length) UI.toast('已自动隐藏联系方式，对接走平台引荐');
         publish(m.text); /* 纯静态部署/接口不可达：沿用本地打码 */
       });
+    },
+    /* 删帖：仅限删除本人发布的帖子（朋友圈式二次确认）。
+     * 校验时机：删帖瞬间校验会员有效性 + 帖子存在性 + 归属，三项任一不满足即拦截。 */
+    cclDelPost: function (id) {
+      var db = S.get();
+      if (!memberValid(db)) {
+        UI.toast(db.user.member ? '会员已过期，续费后才能管理动态' : '仅会员可管理自己的动态');
+        UI.go('#/vip');
+        return;
+      }
+      var p = (db.posts || []).filter(function (x) { return x.id === id; })[0];
+      if (!p) { UI.toast('该动态不存在或已被删除'); render(); return; }
+      if (!cclIsMine(p, db)) { UI.toast('只能删除自己发布的动态'); return; }
+      if (!window.confirm('删除这条动态？删除后不可恢复。')) return;
+      db.posts = db.posts.filter(function (x) { return x.id !== id; });
+      S.save();
+      UI.toast('已删除');
+      setTimeout(function () { render(); }, 500);
     },
     cclRefer: function (id) {
       var db = S.get();
