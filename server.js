@@ -25,8 +25,12 @@ const crypto = require('crypto');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
-const WX_APPID = process.env.WX_APPID || '';
-const WX_SECRET = process.env.WX_SECRET || '';
+/* 公众号密钥：优先环境变量，其次 data/wxkeys.json（本地文件，已在 .gitignore，不进仓库） */
+function wxKeys() {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'wxkeys.json'), 'utf8')) || {}; } catch (e) { return {}; }
+}
+const WX_APPID = process.env.WX_APPID || wxKeys().appId || '';
+const WX_SECRET = process.env.WX_SECRET || wxKeys().secret || '';
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
