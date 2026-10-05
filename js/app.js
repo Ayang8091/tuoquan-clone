@@ -57,6 +57,37 @@
   function money(n) { return '¥' + (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-CN'); }
   function nowStr() { return S.today() + ' ' + new Date().toTimeString().slice(0, 5); }
 
+  /* ===== 转发链接卡片（v=146）：站内把外链渲染成卡片（标题/摘要/缩略图），点击跳原链接 ===== */
+  function lkDomain(u) {
+    try { return (new URL(u, location.href)).hostname.replace(/^www\./, ''); }
+    catch (_) { return '外部链接'; }
+  }
+  function linkCardHtml(url, opts) {
+    opts = opts || {};
+    if (!url) return '';
+    var o = encodeURIComponent(url); /* openVideo 等场景直接传参用 */
+    var img = opts.img || 'img/logo-icon.png';
+    var title = opts.title || lkDomain(url);
+    var desc = opts.desc || lkDomain(url);
+    var tag = opts.tag || '';
+    return '<div class="lk-card" data-u="' + esc(url) + '" onclick="LK.open(this,event)"' + (opts.stop ? ' data-stop="1"' : '') + '>' +
+      '<img class="lk-img" src="' + img + '" alt="" onerror="this.style.display=\'none\'">' +
+      '<div class="lk-main">' +
+      '<div class="lk-title">' + esc(title) + (tag ? '<span class="lk-tag">' + esc(tag) + '</span>' : '') + '</div>' +
+      '<div class="lk-desc">' + esc(desc) + '</div>' +
+      '<div class="lk-host">🔗 ' + esc(lkDomain(url)) + '</div>' +
+      '</div><span class="lk-go">›</span></div>';
+  }
+  window.LK = {
+    open: function (el, ev) {
+      var u = el && el.getAttribute && el.getAttribute('data-u');
+      if (!u) return;
+      if (el.getAttribute('data-stop') && ev && ev.stopPropagation) ev.stopPropagation();
+      UI.toast('正在打开链接…');
+      window.open(u, '_blank');
+    }
+  };
+
   /* 假二维码（确定性图案，仅演示） */
   function qrSVG(seedStr, size) {
     var h = 0; for (var i = 0; i < seedStr.length; i++) { h = (h * 31 + seedStr.charCodeAt(i)) >>> 0; }
@@ -1070,10 +1101,7 @@
             '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.25))">' +
             '<span style="width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;padding-left:3px">▶</span></div>' +
             '<div style="position:absolute;left:10px;bottom:8px;color:#fff;font-size:11px;text-shadow:0 1px 4px rgba(0,0,0,.6)">点击播放预告视频</div></div>'
-          : '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdeaea;border-radius:10px" onclick="window.open(\'' + s.videoUrl + '\',\'_blank\')">' +
-        '<div style="width:36px;height:36px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🎬</div>' +
-        '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;color:#a3741b">查看沙龙预告视频</div>' +
-        '<div style="font-size:11px;color:var(--txt3);margin-top:1px">视频号实拍 · 点击跳转观看</div></div><span style="color:#a3741b">›</span></div>') + '</div>' : '') +
+          : linkCardHtml(s.videoUrl, { title: '查看沙龙预告视频', desc: '视频号实拍 · 点击跳转观看', tag: '预告', img: s.videoCover || 'img/logo-icon.png' })) + '</div>' : '') +
 
       ((s.sharePoints && s.sharePoints.filter(function (x) { return String(x || '').trim(); }).length)
         ? '<div class="bd-card"><h4>📌 分享要点</h4>' +
@@ -1293,8 +1321,7 @@
     if (imgs.length === 1) imgHtml = '<div style="margin-top:10px"><img src="' + imgs[0] + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;background:#eef0f3"></div>';
     else if (imgs.length > 1) imgHtml = '<div class="ccl-imgs">' + imgs.map(function (u) { return '<img src="' + u + '">'; }).join('') + '</div>';
     var videoHtml = p.videoUrl
-      ? '<div class="ccl-video" onclick="event.stopPropagation();window.open(\'' + p.videoUrl + '\',\'_blank\')">' +
-        '<span style="font-size:14px">🎬</span><span style="flex:1">探访视频 · 点开看看这家公司</span><span style="font-size:11px;color:#a3741b">播放 ›</span></div>' : '';
+      ? linkCardHtml(p.videoUrl, { title: '探访视频 · 点开看看这家公司', desc: '视频号实拍 · 点击跳转观看', tag: '视频', img: p.videoCover || 'img/logo-icon.png', stop: true }) : '';
     var catName = (CCL_CATS.filter(function (c) { return c[0] === p.cat; })[0] || [])[1] || '分享';
     return '<div class="ccl-card" onclick="UI.go(\'#/circle-detail/' + p.id + '\')">' +
       '<div class="ccl-head">' + cclAvatar(a, 38) +
@@ -1571,7 +1598,8 @@
       '<div class="pc-amount">' + money(opt.amount || 0) + '</div>' +
       (opt.title ? '<div class="pc-title">' + esc(opt.title) + '</div>' : '') +
       (p.note ? '<div class="pc-note">📋 ' + esc(p.note) + '</div>' : '') +
-      (p.link ? '<div class="pc-note pc-link" onclick="User.copyPayLink()">🔗 收款链接：<span class="u">' + esc(p.link) + '</span>（点击复制）</div>' : '') +
+      (p.link ? linkCardHtml(p.link, { title: '收款链接 · 点击前往付款', desc: '长按或复制链接，在浏览器打开完成支付', tag: '支付' }) +
+        '<div class="pc-note" onclick="User.copyPayLink()" style="cursor:pointer;text-decoration:underline">📋 复制收款链接</div>' : '') +
       (side
         ? ((p.wxQr && p.aliQr)
           ? '<div class="pc-tabs"><span class="chip ' + (side === 'wx' ? 'on' : '') + '" id="pcTabWx" onclick="User.pcSide(\'wx\')">微信支付</span>' +
